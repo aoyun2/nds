@@ -3,86 +3,58 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Pokemon Platinum</title>
+  <title>DS Player</title>
   <style>
-    html, body { height: 100%; margin: 0; background: #000; overflow: hidden;
+    html, body { height:100%; margin:0; background:#000; overflow:hidden;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    desmond-player { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+    /* Fullscreen iframe */
+    #wrap { position:fixed; inset:0; }
+    #emu {
+      position:absolute; inset:0; width:100%; height:100%;
+      border:0; background:#000;
+    }
 
     /* HUD */
-    .hud {
-      position: fixed; top: 12px; left: 12px; right: 12px;
-      display: flex; justify-content: space-between; gap: 10px;
-      z-index: 50; pointer-events: none;
+    .hud{
+      position:fixed; top:12px; left:12px; right:12px;
+      display:flex; justify-content:space-between; gap:10px;
+      z-index:50; pointer-events:none;
     }
-    .hud .group { display: flex; gap: 10px; pointer-events: auto; }
-    .btn {
-      border: 1px solid rgba(255,255,255,.18);
+    .hud .group{ display:flex; gap:10px; pointer-events:auto; }
+    .btn{
+      border:1px solid rgba(255,255,255,.18);
       background: rgba(10,10,10,.90);
       color: rgba(255,255,255,.92);
-      padding: 10px 12px;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: 800;
-      user-select: none;
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:800;
+      user-select:none;
     }
-    .btn:active { transform: translateY(1px); }
+    .btn:active{ transform: translateY(1px); }
 
-    /* Loading overlay (solid black, no blur) */
-    #loader {
-      position: fixed; inset: 0;
-      background: #000;
-      display: grid; place-items: center;
-      z-index: 100;
+    /* Google Sites / iframe warning */
+    #embedWarn{
+      position:fixed; left:12px; bottom:12px; z-index:60;
+      display:none; gap:10px; align-items:center;
+      background:rgba(0,0,0,.88);
+      color:#fff;
+      padding:10px 12px;
+      border:1px solid rgba(255,255,255,.18);
+      border-radius:12px;
+      font: 650 13px system-ui;
+      max-width:min(780px, calc(100vw - 24px));
     }
-    .card {
-      width: min(560px, calc(100vw - 28px));
-      border: 1px solid rgba(255,255,255,.18);
-      border-radius: 16px;
-      background: #0a0a0a;
-      padding: 18px;
-      color: rgba(255,255,255,.92);
-    }
-    .row { display:flex; justify-content:space-between; align-items:center; gap: 10px; }
-    .title { font-weight: 900; letter-spacing:.2px; }
-    .chip {
-      font-size: 12px; font-weight: 900;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.18);
-      background: rgba(255,255,255,.06);
-      color: rgba(255,255,255,.75);
-      white-space: nowrap;
-    }
-    .sub { margin-top: 6px; color: rgba(255,255,255,.70); font-size: 13px; line-height: 1.35; }
-    .barWrap {
-      margin-top: 14px; height: 14px;
-      border-radius: 999px; overflow: hidden;
-      border: 1px solid rgba(255,255,255,.18);
-      background: rgba(255,255,255,.06);
-    }
-    .bar {
-      height: 100%; width: 0%;
-      background: linear-gradient(90deg, #5bd0ff, #7dffb2);
-      transition: width .12s ease;
-    }
-    .meta { margin-top: 10px; display:grid; grid-template-columns: 1fr 1fr; gap:10px;
-      font-size: 13px; color: rgba(255,255,255,.70); }
-    .meta strong { color: rgba(255,255,255,.92); font-weight: 900; }
-    .note {
-      margin-top: 12px;
-      font-size: 12px;
-      color: rgba(255,255,255,.58);
-      line-height: 1.35;
-    }
+    #embedWarn small{ opacity:.8; font-weight:600; }
 
-    /* Controls modal */
-    #modalBack {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.86);
-      display:none; z-index:200; padding:18px; overflow:auto;
+    /* Modal */
+    #modalBack{
+      position:fixed; inset:0; z-index:200;
+      background:rgba(0,0,0,.86);
+      display:none; padding:18px; overflow:auto;
     }
-    #modal {
+    #modal{
       margin: 40px auto;
       width: min(720px, 100%);
       border: 1px solid rgba(255,255,255,.18);
@@ -92,56 +64,46 @@
       color: rgba(255,255,255,.92);
     }
     .modalHeader{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      margin-bottom:12px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; margin-bottom:12px;
     }
-    .modalHeader h2 { margin: 0; font-size: 18px; }
-    #btnClose { margin-left: 12px; }
-
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-    .panel { border: 1px solid rgba(255,255,255,.18); border-radius: 14px; padding: 12px;
+    .modalHeader h2{ margin:0; font-size:18px; }
+    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .panel{ border:1px solid rgba(255,255,255,.18); border-radius:14px; padding:12px;
       background: rgba(255,255,255,.04); }
-    .panel h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
-      letter-spacing: .9px; color: rgba(255,255,255,.72); }
-    .krow { display:flex; justify-content:space-between; gap:10px; padding:6px 0;
+    .panel h3{ margin:0 0 8px; font-size:13px; text-transform:uppercase;
+      letter-spacing:.9px; color: rgba(255,255,255,.72); }
+    .krow{ display:flex; justify-content:space-between; gap:10px; padding:6px 0;
       border-bottom:1px solid rgba(255,255,255,.10); }
     .krow:last-child{ border-bottom:0; }
-    code.k { padding: 3px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18);
-      background: rgba(0,0,0,.45); font-weight: 900; }
-    @media (max-width: 720px) { .meta { grid-template-columns: 1fr; } .grid { grid-template-columns: 1fr; } }
+    code.k{ padding:3px 8px; border-radius:10px; border:1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.45); font-weight:900; }
+    @media (max-width:720px){ .grid{ grid-template-columns:1fr; } }
   </style>
 </head>
 
 <body>
+  <div id="wrap">
+    <!-- DS Player from desmume-wasm -->
+    <iframe id="emu" src="./desmume/" allow="fullscreen *; gamepad *; autoplay *" allowfullscreen></iframe>
+  </div>
+
   <div class="hud">
     <div class="group">
       <button class="btn" id="btnControls">Controls</button>
+      <button class="btn" id="btnFullscreen">Fullscreen</button>
+    </div>
+    <div class="group">
+      <button class="btn" id="btnOpen">Open in new tab</button>
     </div>
   </div>
 
-  <desmond-player id="player"></desmond-player>
-
-  <div id="loader">
-    <div class="card">
-      <div class="row">
-        <div class="title">Loading ROM</div>
-        <div class="chip" id="pct">0%</div>
-      </div>
-      <div class="sub" id="sub">Downloading game data…</div>
-      <div class="barWrap"><div class="bar" id="bar"></div></div>
-
-      <div class="meta">
-        <div><strong id="dl">0 MB</strong><div>Downloaded</div></div>
-        <div><strong id="eta">—</strong><div>Speed / ETA</div></div>
-      </div>
-
-      <div class="note">
-        Tip: Jaeho Lee sold me weed in the Stratford South Parking Lot.
-      </div>
+  <div id="embedWarn">
+    <div>
+      <div><b>Heads up:</b> Saves may not persist when embedded in Google Sites.</div>
+      <small>This is because iframe storage can be partitioned/ephemeral in modern browsers.</small>
     </div>
+    <button class="btn" id="btnOpen2">Open</button>
   </div>
 
   <div id="modalBack">
@@ -160,173 +122,48 @@
           <div class="krow"><span>Y</span><code class="k">A</code></div>
           <div class="krow"><span>X</span><code class="k">S</code></div>
           <div class="krow"><span>L</span><code class="k">Q</code></div>
-          <div class="krow"><span>R (simulate blowing on the mic)</span><code class="k">W</code></div>
+          <div class="krow"><span>R (blow mic)</span><code class="k">W</code></div>
           <div class="krow"><span>Start</span><code class="k">Enter</code></div>
           <div class="krow"><span>Select</span><code class="k">Shift</code></div>
           <div class="krow"><span>Menu</span><code class="k">Esc</code></div>
         </div>
+
         <div class="panel">
-          <h3>Layout</h3>
+          <h3>Notes</h3>
           <div style="color:rgba(255,255,255,.78);font-size:13px;line-height:1.5">
-            Screens are <b>side-by-side</b>: left = top screen, right = bottom screen.
-            They scale to fit your window while preserving pixel aspect ratio.
+            DS Player auto-saves after you save in-game (wait a few seconds). :contentReference[oaicite:3]{index=3}
             <br><br>
-            If controls aren't responding, click the emulator once so it has keyboard focus.
+            For side-by-side layout: open DS Player settings → <b>Landscape Screen Layout</b> → choose an <b>LR</b> option.
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Desmond -->
-  <script src="https://cdn.jsdelivr.net/gh/Unzor/desmond/cdn/desmond.min.js"></script>
-
   <script>
-    // ====== CONFIG ======
-    const ROM_URL = "https://files.catbox.moe/35lx11.nds";
-    // ====================
-
-    const el = (id) => document.getElementById(id);
-
-    // Controls modal
-    const modalBack = el("modalBack");
-    el("btnControls").onclick = () => modalBack.style.display = "block";
-    el("btnClose").onclick = () => modalBack.style.display = "none";
+    const modalBack = document.getElementById("modalBack");
+    document.getElementById("btnControls").onclick = () => modalBack.style.display = "block";
+    document.getElementById("btnClose").onclick = () => modalBack.style.display = "none";
     modalBack.addEventListener("click", (e) => { if (e.target === modalBack) modalBack.style.display = "none"; });
 
-    function fmtMB(bytes){ return (bytes/(1024*1024)).toFixed(bytes < 10*1024*1024 ? 1 : 0) + " MB"; }
-    function fmtSpeed(bps){
-      if (!isFinite(bps) || bps <= 0) return "—";
-      const mbps = bps/(1024*1024);
-      return mbps.toFixed(mbps < 10 ? 1 : 0) + " MB/s";
-    }
-    function fmtETA(sec){
-      if (!isFinite(sec) || sec <= 0) return "—";
-      const m = Math.floor(sec/60), s = Math.floor(sec%60);
-      return (m ? `${m}m ` : "") + `${s}s`;
-    }
+    const openNewTab = () => window.open(window.location.href, "_blank", "noopener,noreferrer");
+    document.getElementById("btnOpen").onclick = openNewTab;
+    document.getElementById("btnOpen2").onclick = openNewTab;
 
-    async function fetchWithProgress(url, onProgress){
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`ROM download failed: HTTP ${r.status}`);
-      const total = Number(r.headers.get("content-length")) || 0;
-
-      if (r.body && r.body.getReader) {
-        const reader = r.body.getReader();
-        let received = 0;
-        const chunks = [];
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          received += value.byteLength;
-          onProgress(received, total);
-        }
-        const out = new Uint8Array(received);
-        let off = 0;
-        for (const c of chunks) { out.set(c, off); off += c.byteLength; }
-        return out.buffer;
+    // Fullscreen (wrapper, not the iframe element)
+    document.getElementById("btnFullscreen").onclick = async () => {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
       }
+    };
 
-      const buf = await r.arrayBuffer();
-      onProgress(buf.byteLength, total || buf.byteLength);
-      return buf;
+    // If embedded (Google Sites), show warning + open button.
+    // Storage in iframes can be partitioned/ephemeral in modern browsers. :contentReference[oaicite:4]{index=4}
+    if (window.top !== window.self) {
+      document.getElementById("embedWarn").style.display = "flex";
     }
-
-    // Side-by-side: left half = top screen, right half = bottom screen
-    function forceSideBySide(player){
-      const apply = () => {
-        const sr = player.shadowRoot;
-        if (!sr) return false;
-
-        let top = sr.querySelector("canvas#top");
-        let bottom = sr.querySelector("canvas#bottom");
-        if (!top || !bottom) {
-          const cvs = sr.querySelectorAll("canvas");
-          if (cvs.length >= 2) { top = cvs[0]; bottom = cvs[1]; }
-        }
-        if (!top || !bottom) return false;
-
-        const setup = (c) => {
-          c.style.position = "fixed";
-          c.style.top = "50%";
-          c.style.transformOrigin = "50% 50%";
-          c.style.imageRendering = "pixelated";
-          c.style.zIndex = "1";
-        };
-        setup(top); setup(bottom);
-
-        const resize = () => {
-          const W = window.innerWidth;
-          const H = window.innerHeight;
-          const halfW = W / 2;
-
-          // maximize each screen inside its half while keeping 256x192 aspect
-          const s = Math.min(halfW / 256, H / 192);
-
-          top.style.left = (halfW * 0.5) + "px";
-          bottom.style.left = (halfW * 1.5) + "px";
-
-          top.style.transform = `translate(-50%, -50%) scale(${s})`;
-          bottom.style.transform = `translate(-50%, -50%) scale(${s})`;
-        };
-
-        window.addEventListener("resize", resize, { passive: true });
-        resize();
-        return true;
-      };
-
-      if (apply()) return;
-      const mo = new MutationObserver(() => { if (apply()) mo.disconnect(); });
-      mo.observe(player, { childList:true, subtree:true });
-      const t = setInterval(() => {
-        if (player.shadowRoot) { mo.observe(player.shadowRoot, { childList:true, subtree:true }); clearInterval(t); }
-      }, 50);
-      setTimeout(() => clearInterval(t), 5000);
-    }
-
-    window.addEventListener("load", async () => {
-      const bar = el("bar");
-      const pct = el("pct");
-      const dl = el("dl");
-      const eta = el("eta");
-      const sub = el("sub");
-
-      let lastT = performance.now(), lastB = 0, ema = 0;
-
-      const buf = await fetchWithProgress(ROM_URL, (received, total) => {
-        const now = performance.now();
-        const dt = (now - lastT) / 1000;
-        if (dt >= 0.25) {
-          const db = received - lastB;
-          const inst = db / dt;
-          ema = ema ? (ema * 0.75 + inst * 0.25) : inst;
-          lastT = now; lastB = received;
-        }
-
-        const p = total ? Math.min(1, received / total) : 0;
-        bar.style.width = total ? (p*100).toFixed(1) + "%" : "18%";
-        pct.textContent = total ? Math.floor(p*100) + "%" : "…";
-        dl.textContent = total ? `${fmtMB(received)} / ${fmtMB(total)}` : fmtMB(received);
-        const e = (total && ema > 0) ? (total - received) / ema : NaN;
-        eta.textContent = `${fmtSpeed(ema)} • ETA ${fmtETA(e)}`;
-      });
-
-      sub.textContent = "Initializing emulator…";
-
-      // feed Desmond a blob URL so it doesn't re-download
-      const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(buf)], { type:"application/octet-stream" }));
-      const player = el("player");
-
-      player.loadURL(blobUrl, () => {
-        el("loader").style.display = "none";
-        forceSideBySide(player);
-      });
-
-      // fallback if callback never fires:
-      setTimeout(() => forceSideBySide(player), 1200);
-      setTimeout(() => { el("loader").style.display = "none"; }, 2500);
-    });
   </script>
 </body>
 </html>
