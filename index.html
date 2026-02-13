@@ -13,13 +13,14 @@
     .btn { border: 1px solid rgba(255,255,255,.18); background: rgba(10,10,10,.9); color: rgba(255,255,255,.92); padding: 10px 12px; border-radius: 12px; cursor: pointer; font-weight: 800; }
 
     #loader { position: fixed; inset: 0; background: #000; display: grid; place-items: center; z-index: 100; }
-    .card { width: min(560px, calc(100vw - 28px)); border: 1px solid rgba(255,255,255,.18); border-radius: 16px; background: #0a0a0a; padding: 18px; color: rgba(255,255,255,.92); }
+    .card { width: min(640px, calc(100vw - 28px)); border: 1px solid rgba(255,255,255,.18); border-radius: 16px; background: #0a0a0a; padding: 18px; color: rgba(255,255,255,.92); }
     .row { display:flex; justify-content:space-between; align-items:center; gap: 10px; }
     .title { font-weight: 900; }
     .chip { font-size: 12px; font-weight: 900; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: rgba(255,255,255,.75); }
     .sub { margin-top: 6px; color: rgba(255,255,255,.70); font-size: 13px; }
     .barWrap { margin-top: 14px; height: 14px; border-radius: 999px; overflow: hidden; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); }
     .bar { height: 100%; width: 0%; background: linear-gradient(90deg, #5bd0ff, #7dffb2); transition: width .12s ease; }
+    .error { margin-top: 12px; border: 1px solid rgba(255, 64, 64, .45); background: rgba(255, 64, 64, .1); border-radius: 10px; padding: 10px; white-space: pre-wrap; font-size: 12px; }
 
     #modalBack { position: fixed; inset: 0; background: rgba(0,0,0,.86); display:none; z-index:200; padding:18px; overflow:auto; }
     #modal { margin: 40px auto; width: min(720px, 100%); border: 1px solid rgba(255,255,255,.18); border-radius: 18px; background: #0a0a0a; padding: 18px; color: rgba(255,255,255,.92); }
@@ -40,6 +41,7 @@
       <div class="row"><div class="title">Loading desmume-wasm</div><div class="chip" id="pct">0%</div></div>
       <div class="sub" id="sub">Bootstrapping runtime…</div>
       <div class="barWrap"><div class="bar" id="bar"></div></div>
+      <div id="err" class="error" style="display:none"></div>
     </div>
   </div>
 
@@ -54,8 +56,8 @@
   <script>
     const ROM_URL = "https://files.catbox.moe/35lx11.nds";
     const SAVE_KEY = "pkplat_embed.desmume_wasm.sav";
-    const NDS_JS_CANDIDATES = ["./desmume/wasm-port/nds.js", "https://ds.44670.org/nds.js"];
-    const NDS_BASES = ["./desmume/wasm-port/", "https://ds.44670.org/"];
+    const NDS_BASE = "./desmume/wasm-port/";
+    const NDS_JS = NDS_BASE + "nds.js";
 
     const el = (id) => document.getElementById(id);
     el("btnControls").onclick = () => el("modalBack").style.display = "block";
@@ -65,6 +67,24 @@
       el("bar").style.width = `${Math.max(0, Math.min(100, pct))}%`;
       el("pct").textContent = `${Math.floor(pct)}%`;
       if (msg) el("sub").textContent = msg;
+    }
+
+    function showError(message) {
+      const err = el("err");
+      err.style.display = "block";
+      err.textContent = message;
+      console.error(message);
+    }
+
+    async function ensureLocalRuntimePresent() {
+      const probe = await fetch(NDS_JS, { method: "GET" });
+      if (!probe.ok) {
+        throw new Error(
+          `desmume-wasm runtime missing:\n` +
+          `Expected ${NDS_JS} and ${NDS_BASE}nds.wasm.\n` +
+          `Run scripts/fetch-desmume-wasm-runtime.sh (or place files manually).`
+        );
+      }
     }
 
     async function loadScript(src) {
@@ -98,137 +118,134 @@
     }
 
     window.addEventListener("load", async () => {
-      const topCtx = el("top").getContext("2d", { alpha: false });
-      const bottomCtx = el("bottom").getContext("2d", { alpha: false });
-      const topImage = topCtx.createImageData(256, 192);
-      const bottomImage = bottomCtx.createImageData(256, 192);
+      try {
+        const topCtx = el("top").getContext("2d", { alpha: false });
+        const bottomCtx = el("bottom").getContext("2d", { alpha: false });
+        const topImage = topCtx.createImageData(256, 192);
+        const bottomImage = bottomCtx.createImageData(256, 192);
 
-      updateProgress(5, "Loading desmume-wasm runtime…");
+        updateProgress(5, "Checking local desmume-wasm runtime…");
+        await ensureLocalRuntimePresent();
 
-      let Module;
-      for (let i = 0; i < NDS_JS_CANDIDATES.length; i++) {
-        const base = NDS_BASES[i];
-        try {
-          Module = await new Promise(async (resolve, reject) => {
-            window.Module = {
-              locateFile(path) { return base + path; },
-              onRuntimeInitialized() { resolve(window.Module); }
-            };
-            try {
-              await loadScript(NDS_JS_CANDIDATES[i]);
-            } catch (err) {
-              reject(err);
-            }
-            setTimeout(() => reject(new Error("Runtime init timed out")), 20000);
-          });
-          break;
-        } catch (err) {
-          console.warn(err);
+        updateProgress(15, "Loading desmume-wasm runtime…");
+        const Module = await new Promise(async (resolve, reject) => {
+          window.Module = {
+            locateFile(path) { return NDS_BASE + path; },
+            onRuntimeInitialized() { resolve(window.Module); }
+          };
+          try {
+            await loadScript(NDS_JS);
+          } catch (err) {
+            reject(err);
+          }
+          setTimeout(() => reject(new Error("Runtime init timed out")), 20000);
+        });
+
+        const bind = (name, ret, args) => {
+          if (Module.cwrap) {
+            try { return Module.cwrap(name, ret, args); } catch (_) {}
+          }
+          const raw = Module["_" + name];
+          if (typeof raw === "function") return (...x) => raw(...x);
+          throw new Error(`Missing export: ${name}`);
+        };
+
+        const prepareRomBuffer = bind("prepareRomBuffer", "number", ["number"]);
+        const loadROM = bind("loadROM", "number", ["number"]);
+        const runFrame = bind("runFrame", "number", ["number", "number", "number", "number", "number"]);
+        const getSymbol = bind("getSymbol", "number", ["number"]);
+        const savGetSize = bind("savGetSize", "number", []);
+        const savGetPointer = bind("savGetPointer", "number", ["number"]);
+        const savUpdateChangeFlag = bind("savUpdateChangeFlag", "number", []);
+
+        updateProgress(35, "Downloading ROM…");
+        const rom = new Uint8Array(await fetchArrayBuffer(ROM_URL));
+
+        updateProgress(55, "Preparing emulator filesystem…");
+        Module.FS.writeFile("rom.nds", rom);
+        const saved = localStorage.getItem(SAVE_KEY);
+        if (saved) {
+          const bytes = fromBase64(saved);
+          const p = savGetPointer(bytes.length);
+          Module.HEAPU8.set(bytes, p);
         }
-      }
-      if (!Module) throw new Error("Unable to load desmume-wasm runtime");
 
-      const bind = (name, ret, args) => {
-        if (Module.cwrap) {
-          try { return Module.cwrap(name, ret, args); } catch (_) {}
+        const romPtr = prepareRomBuffer(rom.length);
+        Module.HEAPU8.set(rom, romPtr);
+
+        updateProgress(75, "Starting game…");
+        const loadCode = loadROM(rom.length);
+        if (loadCode !== 0) throw new Error(`loadROM failed with code ${loadCode}`);
+
+        const fbPtr = getSymbol(4);
+        const screenBytes = 256 * 192 * 4;
+        const keyState = new Set();
+        const keyBits = {
+          ArrowRight: 0, ArrowLeft: 1, ArrowDown: 2, ArrowUp: 3,
+          Shift: 4, Enter: 5,
+          x: 6, z: 7, a: 8, s: 9, q: 10, e: 11, w: 14
+        };
+
+        let touch = { active: false, x: 0, y: 0 };
+        const bottomCanvas = el("bottom");
+        const updateTouch = (evt) => {
+          const rect = bottomCanvas.getBoundingClientRect();
+          touch.x = Math.max(0, Math.min(255, Math.floor(((evt.clientX - rect.left) / rect.width) * 256)));
+          touch.y = Math.max(0, Math.min(191, Math.floor(((evt.clientY - rect.top) / rect.height) * 192)));
+        };
+        bottomCanvas.addEventListener("pointerdown", (e) => { touch.active = true; updateTouch(e); });
+        bottomCanvas.addEventListener("pointermove", (e) => { if (touch.active) updateTouch(e); });
+        bottomCanvas.addEventListener("pointerup", () => { touch.active = false; });
+        bottomCanvas.addEventListener("pointercancel", () => { touch.active = false; });
+
+        window.addEventListener("keydown", (e) => {
+          const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+          if (keyBits[k] !== undefined) { keyState.add(keyBits[k]); e.preventDefault(); }
+        });
+        window.addEventListener("keyup", (e) => {
+          const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+          if (keyBits[k] !== undefined) { keyState.delete(keyBits[k]); e.preventDefault(); }
+        });
+
+        function buildKeyMask() {
+          let mask = 0;
+          for (const bit of keyState) mask |= (1 << bit);
+          return mask;
         }
-        const raw = Module["_" + name];
-        if (typeof raw === "function") return (...x) => raw(...x);
-        throw new Error(`Missing export: ${name}`);
-      };
 
-      const prepareRomBuffer = bind("prepareRomBuffer", "number", ["number"]);
-      const loadROM = bind("loadROM", "number", ["number"]);
-      const runFrame = bind("runFrame", "number", ["number", "number", "number", "number", "number"]);
-      const getSymbol = bind("getSymbol", "number", ["number"]);
-      const savGetSize = bind("savGetSize", "number", []);
-      const savGetPointer = bind("savGetPointer", "number", ["number"]);
-      const savUpdateChangeFlag = bind("savUpdateChangeFlag", "number", []);
+        updateProgress(100, "Running");
+        el("loader").style.display = "none";
 
-      updateProgress(35, "Downloading ROM…");
-      const rom = new Uint8Array(await fetchArrayBuffer(ROM_URL));
+        let lastSaveCheck = 0;
+        function tick(ts) {
+          const keys = buildKeyMask();
+          runFrame(1, keys, touch.active ? 1 : 0, touch.x, touch.y);
 
-      updateProgress(55, "Preparing virtual filesystem…");
-      Module.FS.writeFile("rom.nds", rom);
-      const saved = localStorage.getItem(SAVE_KEY);
-      if (saved) {
-        const bytes = fromBase64(saved);
-        const p = savGetPointer(bytes.length);
-        Module.HEAPU8.set(bytes, p);
-      }
+          const topBuf = Module.HEAPU8.subarray(fbPtr, fbPtr + screenBytes);
+          const bottomBuf = Module.HEAPU8.subarray(fbPtr + screenBytes, fbPtr + screenBytes * 2);
+          topImage.data.set(topBuf);
+          bottomImage.data.set(bottomBuf);
+          topCtx.putImageData(topImage, 0, 0);
+          bottomCtx.putImageData(bottomImage, 0, 0);
 
-      const romPtr = prepareRomBuffer(rom.length);
-      Module.HEAPU8.set(rom, romPtr);
-
-      updateProgress(75, "Starting game…");
-      const loadCode = loadROM(rom.length);
-      if (loadCode !== 0) throw new Error(`loadROM failed with code ${loadCode}`);
-
-      const fbPtr = getSymbol(4);
-      const screenBytes = 256 * 192 * 4;
-      const keyState = new Set();
-      const keyBits = {
-        ArrowRight: 0, ArrowLeft: 1, ArrowDown: 2, ArrowUp: 3,
-        Shift: 4, Enter: 5,
-        x: 6, z: 7, a: 8, s: 9, q: 10, e: 11, w: 14
-      };
-
-      let touch = { active: false, x: 0, y: 0 };
-      const bottomCanvas = el("bottom");
-      const updateTouch = (evt) => {
-        const rect = bottomCanvas.getBoundingClientRect();
-        touch.x = Math.max(0, Math.min(255, Math.floor(((evt.clientX - rect.left) / rect.width) * 256)));
-        touch.y = Math.max(0, Math.min(191, Math.floor(((evt.clientY - rect.top) / rect.height) * 192)));
-      };
-      bottomCanvas.addEventListener("pointerdown", (e) => { touch.active = true; updateTouch(e); });
-      bottomCanvas.addEventListener("pointermove", (e) => { if (touch.active) updateTouch(e); });
-      bottomCanvas.addEventListener("pointerup", () => { touch.active = false; });
-      bottomCanvas.addEventListener("pointercancel", () => { touch.active = false; });
-
-      window.addEventListener("keydown", (e) => {
-        const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-        if (keyBits[k] !== undefined) { keyState.add(keyBits[k]); e.preventDefault(); }
-      });
-      window.addEventListener("keyup", (e) => {
-        const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-        if (keyBits[k] !== undefined) { keyState.delete(keyBits[k]); e.preventDefault(); }
-      });
-
-      function buildKeyMask() {
-        let mask = 0;
-        for (const bit of keyState) mask |= (1 << bit);
-        return mask;
-      }
-
-      updateProgress(100, "Running");
-      el("loader").style.display = "none";
-
-      let lastSaveCheck = 0;
-      function tick(ts) {
-        const keys = buildKeyMask();
-        runFrame(1, keys, touch.active ? 1 : 0, touch.x, touch.y);
-
-        const topBuf = Module.HEAPU8.subarray(fbPtr, fbPtr + screenBytes);
-        const bottomBuf = Module.HEAPU8.subarray(fbPtr + screenBytes, fbPtr + screenBytes * 2);
-        topImage.data.set(topBuf);
-        bottomImage.data.set(bottomBuf);
-        topCtx.putImageData(topImage, 0, 0);
-        bottomCtx.putImageData(bottomImage, 0, 0);
-
-        if (ts - lastSaveCheck > 1000) {
-          lastSaveCheck = ts;
-          if (savUpdateChangeFlag() > 0) {
-            const size = savGetSize();
-            if (size > 0) {
-              const p = savGetPointer(0);
-              const bytes = Module.HEAPU8.slice(p, p + size);
-              localStorage.setItem(SAVE_KEY, toBase64(bytes));
+          if (ts - lastSaveCheck > 1000) {
+            lastSaveCheck = ts;
+            if (savUpdateChangeFlag() > 0) {
+              const size = savGetSize();
+              if (size > 0) {
+                const p = savGetPointer(0);
+                const bytes = Module.HEAPU8.slice(p, p + size);
+                localStorage.setItem(SAVE_KEY, toBase64(bytes));
+              }
             }
           }
+          requestAnimationFrame(tick);
         }
         requestAnimationFrame(tick);
+      } catch (err) {
+        updateProgress(100, "Startup failed");
+        showError(String(err.message || err));
       }
-      requestAnimationFrame(tick);
     });
   </script>
 </body>

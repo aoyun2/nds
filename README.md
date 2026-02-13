@@ -1,15 +1,23 @@
 # pkplat_embed
 
-This page now targets **desmume-wasm** (instead of Desmond).
+This page integrates with **desmume-wasm** from the `desmume/wasm-port` runtime artifacts.
 
-## Runtime files
+## Required runtime files
 
-`index.html` first attempts to load:
+The frontend expects these files to exist locally:
 
-- `./desmume/wasm-port/nds.js`
-- and expects `nds.wasm` in the same folder.
+- `desmume/wasm-port/nds.js`
+- `desmume/wasm-port/nds.wasm`
 
-If those local files are missing, it falls back to `https://ds.44670.org/nds.js` and its matching wasm path.
+The repo includes the desmume-wasm C++ source, but not prebuilt web runtime artifacts. Generate or fetch those files first.
+
+### Quick setup
+
+```bash
+./scripts/fetch-desmume-wasm-runtime.sh
+```
+
+This downloads runtime files from `https://ds.44670.org/` into `desmume/wasm-port/`.
 
 ## Save behavior
 
