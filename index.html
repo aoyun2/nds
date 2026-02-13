@@ -77,15 +77,37 @@
     }
 
     async function ensureLocalRuntimePresent() {
-      const probe = await fetch(NDS_JS, { method: "GET" });
-      if (!probe.ok) {
+      if (/^https?:\/\//i.test(NDS_JS)) {
+        throw new Error(
+          `Refusing remote runtime URL (${NDS_JS}).\n` +
+          `Use local runtime files at ${NDS_BASE}nds.js and ${NDS_BASE}nds.wasm.`
+        );
+      }
+
+      const jsProbe = await fetch(NDS_JS, { method: "GET" });
+      if (!jsProbe.ok) {
         throw new Error(
           `desmume-wasm runtime missing:\n` +
           `Expected ${NDS_JS} and ${NDS_BASE}nds.wasm.\n` +
-          `Run scripts/fetch-desmume-wasm-runtime.sh (or place files manually).`
+          `Use the runtime files already included in this repo.`
         );
       }
+
+      const jsBody = await jsProbe.text();
+      if (jsBody.includes("<html") || !jsBody.includes("var Module=")) {
+        throw new Error(
+          `Invalid runtime file at ${NDS_JS}.\n` +
+          `It looks like an HTML page, not the desmume-wasm runtime.\n` +
+          `Ensure desmume/wasm-port/nds.js is the real Emscripten build artifact.`
+        );
+      }
+
+      const wasmProbe = await fetch(NDS_BASE + "nds.wasm", { method: "HEAD" });
+      if (!wasmProbe.ok) {
+        throw new Error(`Missing wasm runtime: ${NDS_BASE}nds.wasm`);
+      }
     }
+
 
     async function loadScript(src) {
       return new Promise((resolve, reject) => {
@@ -119,6 +141,13 @@
 
     window.addEventListener("load", async () => {
       try {
+        if (window.location.protocol === "file:") {
+          throw new Error(
+            "This page cannot run from file:// because browser CORS blocks runtime/ROM fetches.\n" +
+            "Start a local web server and open via http://localhost (example: python3 -m http.server 8000)."
+          );
+        }
+
         const topCtx = el("top").getContext("2d", { alpha: false });
         const bottomCtx = el("bottom").getContext("2d", { alpha: false });
         const topImage = topCtx.createImageData(256, 192);
