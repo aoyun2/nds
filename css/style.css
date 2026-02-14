@@ -5,14 +5,15 @@ html, body {
   overflow: hidden;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
-
-desmond-player {
+canvas {
   position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
+  top: 50%;
+  transform-origin: 50% 50%;
+  image-rendering: pixelated;
+  z-index: 1;
 }
+#top { left: 25vw; }
+#bottom { left: 75vw; }
 
 /* HUD */
 .hud {
@@ -20,8 +21,7 @@ desmond-player {
   display: flex; justify-content: space-between; gap: 10px;
   z-index: 50; pointer-events: none;
 }
-.hud .group { display: flex; gap: 10px; pointer-events: auto; align-items:center; }
-
+.hud .group { display: flex; gap: 10px; pointer-events: auto; align-items: center; }
 .btn {
   border: 1px solid rgba(255,255,255,.18);
   background: rgba(10,10,10,.90);
@@ -33,16 +33,14 @@ desmond-player {
   user-select: none;
 }
 .btn:active { transform: translateY(1px); }
-.btn.danger { border-color: rgba(255,80,80,.35); }
-
-.pill{
+.chip {
+  font-size: 12px; font-weight: 900;
+  padding: 6px 10px;
+  border-radius: 999px;
   border: 1px solid rgba(255,255,255,.18);
   background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.85);
-  padding: 8px 10px;
-  border-radius: 999px;
-  font-weight: 800;
-  font-size: 12px;
+  color: rgba(255,255,255,.75);
+  white-space: nowrap;
 }
 
 /* Loading overlay (solid black, no blur) */
@@ -62,15 +60,6 @@ desmond-player {
 }
 .row { display:flex; justify-content:space-between; align-items:center; gap: 10px; }
 .title { font-weight: 900; letter-spacing:.2px; }
-.chip {
-  font-size: 12px; font-weight: 900;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,.18);
-  background: rgba(255,255,255,.06);
-  color: rgba(255,255,255,.75);
-  white-space: nowrap;
-}
 .sub { margin-top: 6px; color: rgba(255,255,255,.70); font-size: 13px; line-height: 1.35; }
 .barWrap {
   margin-top: 14px; height: 14px;
@@ -93,13 +82,11 @@ desmond-player {
   line-height: 1.35;
 }
 
-/* Modal */
+/* Controls modal */
 #modalBack {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.86);
-  z-index: 200;
-  padding: 18px;
-  overflow: auto;
+  display:none; z-index:200; padding:18px; overflow:auto;
 }
 #modal {
   margin: 40px auto;
@@ -118,41 +105,16 @@ desmond-player {
   margin-bottom:12px;
 }
 .modalHeader h2 { margin: 0; font-size: 18px; }
-
 .grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-.panel {
-  border: 1px solid rgba(255,255,255,.18);
-  border-radius: 14px;
-  padding: 12px;
-  background: rgba(255,255,255,.04);
-}
-.panel h3 {
-  margin: 0 0 8px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: .9px;
-  color: rgba(255,255,255,.72);
-}
-.krow {
-  display:flex;
-  justify-content:space-between;
-  gap:10px;
-  padding:6px 0;
-  border-bottom:1px solid rgba(255,255,255,.10);
-}
+.panel { border: 1px solid rgba(255,255,255,.18); border-radius: 14px; padding: 12px;
+  background: rgba(255,255,255,.04); }
+.panel h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase;
+  letter-spacing: .9px; color: rgba(255,255,255,.72); }
+.krow { display:flex; justify-content:space-between; gap:10px; padding:6px 0;
+  border-bottom:1px solid rgba(255,255,255,.10); }
 .krow:last-child{ border-bottom:0; }
-code.k {
-  padding: 3px 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.18);
-  background: rgba(0,0,0,.45);
-  font-weight: 900;
-}
-
-.ptext { color: rgba(255,255,255,.78); font-size: 13px; line-height: 1.5; }
-.ptext.small { color: rgba(255,255,255,.66); font-size: 12px; }
-.saveRow { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
-
+code.k { padding: 3px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.45); font-weight: 900; }
 @media (max-width: 720px) {
   .meta { grid-template-columns: 1fr; }
   .grid { grid-template-columns: 1fr; }

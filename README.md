@@ -1,22 +1,29 @@
-# pkplat_embed
+# NDS Player (DeSmuME-wasm wrapper)
 
-Single-page Pokemon Platinum embed using the Desmond web component.
+This is a minimal static site for GitHub Pages that:
+- loads a ROM from a URL (no file picker)
+- runs DeSmuME-wasm (prebuilt core)
+- autosaves to browser storage (IndexedDB via localForage)
+- supports export/import of `.dsv` save files
 
-## Run locally
+## Configure the ROM
+Edit `js/main.js` and change:
 
-```bash
-python3 -m http.server 8000
+```js
+const ROM_URL = "https://files.catbox.moe/35lx11.nds";
 ```
 
-Open `http://localhost:8000`.
+## Notes about embedding in Google Sites
+Some embedded iframes can block persistent storage. If the top-right badge says `Save: blocked`, your browser is refusing IndexedDB in that embed.
 
-## Save persistence fix
+Workarounds:
+- open the GitHub Pages URL directly (not inside Sites)
+- use `Export save` / `Import save` to manually back up
+- move to a cloud save backend (not included here)
 
-Desmond save persistence is keyed to the ROM URL. If you call `player.loadURL(blob:...)`, the blob URL changes every page load, so save data appears to "not persist."
+## Emulator core
+The emulator core is loaded from jsDelivr:
 
-This project keeps the progress UI but now boots the emulator with the stable `ROM_URL` directly:
+- nds.js / nds.wasm from https://github.com/MajesticWafer/dsp (prebuilt DeSmuME-wasm)
 
-- prefetch with progress bar for UX
-- then `player.loadURL(ROM_URL, ...)` for stable save key
-
-As long as you use the same browser profile + same site origin + same ROM URL, saves should persist.
+If you want to self-host the core, update `js/emu-core.js` to point to your own `build/nds.js` + `build/nds.wasm`.

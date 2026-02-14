@@ -4,30 +4,38 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>NDS Player</title>
-  <link rel="stylesheet" href="./css/app.css" />
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 
 <body>
   <div class="hud">
     <div class="group">
       <button class="btn" id="btnControls">Controls</button>
-      <button class="btn" id="btnSaves">Saves</button>
+      <button class="btn" id="btnSaveNow" title="Force-save to browser storage now">Save now</button>
+      <button class="btn" id="btnExport" title="Download your save as a .dsv file">Export save</button>
+      <label class="btn" id="btnImport" title="Import a .dsv save file">
+        Import save
+        <input id="importFile" type="file" accept=".dsv" hidden />
+      </label>
     </div>
+
     <div class="group">
-      <span class="pill" id="pillStorage">Storage: —</span>
-      <span class="pill" id="pillGame">Game: —</span>
+      <span class="chip" id="saveStatus">Save: …</span>
     </div>
   </div>
 
-  <desmond-player id="player"></desmond-player>
+  <!-- Screens -->
+  <canvas id="top" width="256" height="192"></canvas>
+  <canvas id="bottom" width="256" height="192"></canvas>
 
+  <!-- Loading overlay -->
   <div id="loader">
     <div class="card">
       <div class="row">
-        <div class="title">Loading ROM</div>
+        <div class="title" id="loaderTitle">Loading emulator</div>
         <div class="chip" id="pct">0%</div>
       </div>
-      <div class="sub" id="sub">Downloading game data…</div>
+      <div class="sub" id="sub">Preparing…</div>
       <div class="barWrap"><div class="bar" id="bar"></div></div>
 
       <div class="meta">
@@ -35,77 +43,57 @@
         <div><strong id="eta">—</strong><div>Speed / ETA</div></div>
       </div>
 
-      <div class="note" id="note">
-        If controls aren’t responding, tap/click the emulator once to focus it.
+      <div class="note">
+        Tip: Save in-game. This page auto-stores your save in your browser (and you can export/import a backup).
       </div>
     </div>
   </div>
 
-  <!-- Modal Backdrop -->
-  <div id="modalBack" hidden>
+  <!-- Controls modal -->
+  <div id="modalBack">
     <div id="modal">
       <div class="modalHeader">
-        <h2 id="modalTitle">Controls</h2>
+        <h2>Controls</h2>
         <button class="btn" id="btnClose">Close</button>
       </div>
 
-      <!-- Controls panel -->
-      <div id="panelControls">
-        <div class="grid">
-          <div class="panel">
-            <h3>Keyboard</h3>
-            <div class="krow"><span>D-Pad</span><code class="k">Arrow keys</code></div>
-            <div class="krow"><span>A</span><code class="k">Z</code></div>
-            <div class="krow"><span>B</span><code class="k">X</code></div>
-            <div class="krow"><span>Y</span><code class="k">A</code></div>
-            <div class="krow"><span>X</span><code class="k">S</code></div>
-            <div class="krow"><span>L</span><code class="k">Q</code></div>
-            <div class="krow"><span>R</span><code class="k">W</code></div>
-            <div class="krow"><span>Start</span><code class="k">Enter</code></div>
-            <div class="krow"><span>Select</span><code class="k">Shift</code></div>
-            <div class="krow"><span>Menu</span><code class="k">Esc</code></div>
-          </div>
-          <div class="panel">
-            <h3>Layout</h3>
-            <div class="ptext">
-              Screens are <b>side-by-side</b>: left = top screen, right = bottom screen.
-              They scale to fit your window while preserving the DS aspect ratio.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Saves panel -->
-      <div id="panelSaves" hidden>
+      <div class="grid">
         <div class="panel">
-          <h3>Battery Saves</h3>
-          <div class="ptext">
-            Desmond stores save data in browser storage. This page also provides export/import as a fallback.
-          </div>
-
-          <div class="saveRow">
-            <button class="btn" id="btnExport">Export save (.dsv)</button>
-            <label class="btn" for="importFile" style="display:inline-block;">Import save (.dsv)</label>
-            <input id="importFile" type="file" accept=".dsv,application/octet-stream" hidden />
-            <button class="btn danger" id="btnClear">Clear save</button>
-          </div>
-
-          <div class="ptext small" id="saveStatus">Save status: —</div>
-          <div class="ptext small" id="saveKey">Save key: —</div>
+          <h3>Keyboard</h3>
+          <div class="krow"><span>D-Pad</span><code class="k">Arrow keys</code></div>
+          <div class="krow"><span>A</span><code class="k">X</code></div>
+          <div class="krow"><span>B</span><code class="k">Z</code></div>
+          <div class="krow"><span>Y</span><code class="k">A</code></div>
+          <div class="krow"><span>X</span><code class="k">S</code></div>
+          <div class="krow"><span>L</span><code class="k">Q</code></div>
+          <div class="krow"><span>R + Mic blow</span><code class="k">W</code></div>
+          <div class="krow"><span>Start</span><code class="k">Enter</code></div>
+          <div class="krow"><span>Select</span><code class="k">Shift</code></div>
+          <div class="krow"><span>Menu</span><code class="k">Esc</code></div>
         </div>
-
-        <div class="panel" style="margin-top:12px;">
-          <h3>Notes about embeds</h3>
-          <div class="ptext small">
-            If this is embedded in a sandboxed iframe without <code>allow-same-origin</code>, storage APIs (IndexedDB/localStorage) may be blocked. :contentReference[oaicite:2]{index=2}
-            Some browsers also partition iframe storage by top-level site, which can affect embedded persistence. :contentReference[oaicite:3]{index=3}
+        <div class="panel">
+          <h3>Layout</h3>
+          <div style="color:rgba(255,255,255,.78);font-size:13px;line-height:1.5">
+            Screens are <b>side-by-side</b>: left = top screen, right = bottom screen.
+            They scale to fit your window while preserving the DS pixel aspect ratio.
+            <br><br>
+            Click the emulator once so it has keyboard focus.
+            <br><br>
+            Note: Some embedded iframes (like Google Sites) may block persistent storage.
+            If “Save: blocked” shows up, open this page directly or use <b>Export save</b>.
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
-  <script type="module" src="./js/main.js"></script>
+  <!-- Dependencies -->
+  <script src="js/localforage-1.7.3.min.js"></script>
+
+  <!-- Emulator core (prebuilt DeSmuME-wasm) -->
+  <script src="js/emu-core.js"></script>
+
+  <!-- App -->
+  <script src="js/main.js"></script>
 </body>
 </html>
