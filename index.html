@@ -10,7 +10,6 @@
   <link rel="stylesheet" href="./css/app.css" />
 </head>
 <body>
-  <!-- HUD -->
   <div class="hud" id="hud">
     <div class="L">
       <button class="hbtn" id="btnControls">Controls</button>
@@ -21,25 +20,22 @@
     </div>
   </div>
 
-  <!-- Emulator -->
   <desmond-player id="player"></desmond-player>
 
-  <!-- Loader -->
   <div id="loader">
     <div class="loader-card">
       <div class="loader-title" id="loaderTitle">Loading</div>
       <div class="track"><div class="fill" id="bar"></div></div>
       <div class="loader-meta">
-        <div><span class="val" id="dl">0 MB</span> downloaded</div>
+        <div><span class="val" id="dl">0 MB</span> loaded</div>
         <div><span class="val" id="pct">0%</span></div>
       </div>
-      <div class="loader-sub" id="sub">Downloading ROM…</div>
+      <div class="loader-sub" id="sub">Initialising…</div>
     </div>
   </div>
 
-  <!-- Unmute overlay -->
   <div id="unmute">
-    <div class="inner">
+    <div style="text-align:center">
       <div class="icon">
         <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
       </div>
@@ -47,34 +43,27 @@
     </div>
   </div>
 
-  <!-- Virtual Gamepad (mobile) -->
+  <!-- Virtual Gamepad -->
   <div id="gamepad">
-    <!-- Shoulder buttons -->
     <div class="gp-shoulders">
-      <div class="shoulder gp-zone" data-btn="10">L</div>
-      <div class="shoulder gp-zone" data-btn="11">R</div>
+      <div class="shoulder" data-btn="10">L</div>
+      <div class="shoulder" data-btn="11">R</div>
     </div>
-    <!-- Main row: D-pad | Select/Start | ABXY -->
     <div class="gp-main">
-      <!-- D-Pad -->
-      <div class="dpad-wrap gp-zone" id="dpad">
-        <div class="dpad">
-          <div class="dpad-bg dpad-v"></div>
-          <div class="dpad-bg dpad-h"></div>
-          <div class="dpad-center"></div>
-          <div class="dpad-arrow up" id="arr-up"></div>
-          <div class="dpad-arrow down" id="arr-down"></div>
-          <div class="dpad-arrow left" id="arr-left"></div>
-          <div class="dpad-arrow right" id="arr-right"></div>
-        </div>
+      <div class="dpad-zone" id="dpadZone">
+        <div class="dp-bg dp-v"></div>
+        <div class="dp-bg dp-h"></div>
+        <div class="dp-center"></div>
+        <div class="dp-arrow up"    id="arU"></div>
+        <div class="dp-arrow down"  id="arD"></div>
+        <div class="dp-arrow left"  id="arL"></div>
+        <div class="dp-arrow right" id="arR"></div>
       </div>
-      <!-- Select / Start -->
       <div class="gp-center">
-        <div class="meta-btn gp-zone" data-btn="4">sel</div>
-        <div class="meta-btn gp-zone" data-btn="5">start</div>
+        <div class="meta-btn" data-btn="4">sel</div>
+        <div class="meta-btn" data-btn="5">start</div>
       </div>
-      <!-- ABXY -->
-      <div class="abxy-wrap gp-zone" id="abxy">
+      <div class="abxy-zone" id="abxyZone">
         <div class="face-btn btn-x" data-btn="9">X</div>
         <div class="face-btn btn-y" data-btn="8">Y</div>
         <div class="face-btn btn-a" data-btn="7">A</div>
@@ -103,8 +92,8 @@
           <div class="kv"><span class="label">Select</span><span class="value">Shift</span></div>
         </div>
         <div class="section">
-          <div class="section-label">Touch screen</div>
-          <div class="info">Tap/click the bottom DS screen for stylus input. On mobile, virtual controls appear automatically.</div>
+          <div class="section-label">Touch</div>
+          <div class="info">Tap the bottom DS screen for stylus input. On mobile, virtual controls appear automatically.</div>
         </div>
       </div>
       <div id="panelSaves" style="display:none;">
@@ -113,16 +102,12 @@
           <div class="info">Battery saves persist to browser storage automatically. On reload, saves restore before the ROM boots.</div>
           <div class="actions">
             <button class="hbtn" id="btnExport">Export .dsv</button>
-            <label class="hbtn" for="importFile" style="cursor:pointer;">Import .dsv</label>
+            <label class="hbtn" for="importFile" style="cursor:pointer">Import .dsv</label>
             <input id="importFile" type="file" accept=".dsv,.sav" hidden />
             <button class="hbtn red" id="btnClear">Delete save</button>
           </div>
           <div class="status" id="saveStatus">checking…</div>
           <div class="status" id="saveKey">key: —</div>
-        </div>
-        <div class="section">
-          <div class="section-label">Embed note</div>
-          <div class="info">If embedded in an iframe, browser storage may be blocked. Use Import/Export as a fallback.</div>
         </div>
       </div>
     </div>

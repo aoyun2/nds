@@ -40,8 +40,7 @@ body { font-family: var(--mono); color: var(--text); font-size: 12px; }
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text-mid);
-  cursor: pointer; user-select: none;
-  transition: all .15s ease;
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .hbtn:hover { background: rgba(255,255,255,.08); color: var(--text); border-color: var(--border-hi); }
@@ -49,14 +48,12 @@ body { font-family: var(--mono); color: var(--text); font-size: 12px; }
 .tag {
   font-size: 9px; font-weight: 600; letter-spacing: .3px;
   padding: 5px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid var(--border); border-radius: var(--radius);
   color: var(--text-dim); white-space: nowrap;
 }
 .tag.ok { border-color: rgba(79,255,176,.2); color: rgba(79,255,176,.7); }
 .tag.warn { border-color: rgba(255,200,80,.2); color: rgba(255,200,80,.6); }
 
-/* ── Emulator screens ── */
 desmond-player { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
 
 /* ── Loader ── */
@@ -73,8 +70,7 @@ desmond-player { position: fixed; inset: 0; width: 100%; height: 100%; display: 
 .track { width: 100%; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
 .fill { height: 100%; width: 0%; background: var(--accent); transition: width .15s ease; }
 .loader-meta {
-  margin-top: 12px;
-  display: flex; justify-content: space-between; gap: 10px;
+  margin-top: 12px; display: flex; justify-content: space-between;
   color: var(--text-dim); font-size: 11px;
 }
 .loader-meta .val { color: var(--text-mid); font-weight: 600; }
@@ -85,11 +81,9 @@ desmond-player { position: fixed; inset: 0; width: 100%; height: 100%; display: 
   position: fixed; inset: 0; z-index: 90;
   display: none; align-items: center; justify-content: center;
   cursor: pointer;
-  background: rgba(5,5,5,.65);
-  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  background: rgba(5,5,5,.6);
 }
 #unmute.show { display: flex; }
-#unmute .inner { text-align: center; padding: 20px; }
 #unmute .icon {
   width: 44px; height: 44px; margin: 0 auto 10px;
   border: 2px solid var(--accent); border-radius: 50%;
@@ -120,33 +114,19 @@ desmond-player { position: fixed; inset: 0; width: 100%; height: 100%; display: 
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
 }
-.modal-head h2 {
-  font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
-  color: var(--text-mid);
-}
+.modal-head h2 { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--text-mid); }
 .close-btn {
   font-family: var(--mono); font-size: 9px; font-weight: 600;
-  padding: 4px 7px;
-  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 4px 7px; border: 1px solid var(--border); border-radius: var(--radius);
   background: transparent; color: var(--text-dim); cursor: pointer;
 }
 .section { margin-bottom: 16px; }
 .section:last-child { margin-bottom: 0; }
-.section-label {
-  font-size: 9px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
-  color: var(--text-dim); margin-bottom: 8px;
-}
-.kv {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 11px;
-}
+.section-label { font-size: 9px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; }
+.kv { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 11px; }
 .kv:last-child { border-bottom: none; }
 .kv .label { color: var(--text-mid); }
-.kv .value {
-  font-weight: 600; color: var(--text-dim);
-  padding: 2px 6px; border-radius: 4px;
-  background: rgba(255,255,255,.04); border: 1px solid var(--border);
-}
+.kv .value { font-weight: 600; color: var(--text-dim); padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,.04); border: 1px solid var(--border); }
 .info { font-size: 11px; color: var(--text-dim); line-height: 1.6; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .actions .hbtn.red { border-color: rgba(255,95,95,.2); color: rgba(255,95,95,.65); }
@@ -157,154 +137,96 @@ desmond-player { position: fixed; inset: 0; width: 100%; height: 100%; display: 
    ═══════════════════════════════════════ */
 #gamepad {
   display: none;
-  position: fixed; left: 0; right: 0; bottom: 0;
+  position: fixed; bottom: 0; left: 0; right: 0;
   z-index: 40;
   padding-bottom: var(--safe-b);
-  pointer-events: none;
 }
 #gamepad.active { display: block; }
 
-/* All gamepad children are pointer targets */
-#gamepad .gp-zone { pointer-events: auto; }
-
-/* ── Shoulder buttons ── */
 .gp-shoulders {
-  position: absolute; top: -48px; left: 0; right: 0;
   display: flex; justify-content: space-between;
-  padding: 0 8px;
+  padding: 0 10px 6px;
 }
 .shoulder {
-  width: 64px; height: 36px;
-  border-radius: 8px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.10);
+  width: 64px; height: 34px; border-radius: 8px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 800; color: rgba(255,255,255,.35);
-  transition: background .08s, color .08s;
-  pointer-events: auto;
+  font-size: 11px; font-weight: 800; color: rgba(255,255,255,.25);
   -webkit-tap-highlight-color: transparent;
 }
-.shoulder.pressed { background: rgba(255,255,255,.14); color: rgba(255,255,255,.7); }
+.shoulder.pressed { background: rgba(255,255,255,.15); color: rgba(255,255,255,.6); }
 
-/* ── Main controls row ── */
 .gp-main {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 12px 12px;
-  height: 180px;
+  padding: 4px 12px 12px;
+  height: 160px;
 }
 
 /* ── D-Pad ── */
-.dpad-wrap {
-  width: 130px; height: 130px;
-  position: relative;
-  pointer-events: auto;
+.dpad-zone {
+  width: 120px; height: 120px; position: relative;
   -webkit-tap-highlight-color: transparent;
 }
-.dpad {
-  position: absolute; inset: 0;
-}
-.dpad-bg {
+.dp-bg {
   position: absolute;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.06);
 }
-.dpad-v {
-  left: 50%; top: 8px; bottom: 8px; width: 40px;
-  transform: translateX(-50%);
-  border-radius: 8px;
-}
-.dpad-h {
-  top: 50%; left: 8px; right: 8px; height: 40px;
-  transform: translateY(-50%);
-  border-radius: 8px;
-}
-.dpad-center {
-  position: absolute;
-  left: 50%; top: 50%; width: 28px; height: 28px;
-  transform: translate(-50%,-50%);
-  border-radius: 50%;
+.dp-v { left: 50%; top: 6px; bottom: 6px; width: 38px; transform: translateX(-50%); border-radius: 6px; }
+.dp-h { top: 50%; left: 6px; right: 6px; height: 38px; transform: translateY(-50%); border-radius: 6px; }
+.dp-center {
+  position: absolute; left: 50%; top: 50%; width: 24px; height: 24px;
+  transform: translate(-50%,-50%); border-radius: 50%;
   background: rgba(255,255,255,.04);
-  border: 1px solid rgba(255,255,255,.08);
 }
-/* Arrows */
-.dpad-arrow {
-  position: absolute; width: 0; height: 0;
-  opacity: .18; transition: opacity .06s;
+.dp-arrow {
+  position: absolute; width: 0; height: 0; opacity: .15;
+  transition: opacity .05s;
 }
-.dpad-arrow.lit { opacity: .55; }
-.dpad-arrow.up {
-  top: 14px; left: 50%; transform: translateX(-50%);
-  border-left: 7px solid transparent; border-right: 7px solid transparent;
-  border-bottom: 8px solid #fff;
-}
-.dpad-arrow.down {
-  bottom: 14px; left: 50%; transform: translateX(-50%);
-  border-left: 7px solid transparent; border-right: 7px solid transparent;
-  border-top: 8px solid #fff;
-}
-.dpad-arrow.left {
-  left: 14px; top: 50%; transform: translateY(-50%);
-  border-top: 7px solid transparent; border-bottom: 7px solid transparent;
-  border-right: 8px solid #fff;
-}
-.dpad-arrow.right {
-  right: 14px; top: 50%; transform: translateY(-50%);
-  border-top: 7px solid transparent; border-bottom: 7px solid transparent;
-  border-left: 8px solid #fff;
-}
+.dp-arrow.lit { opacity: .5; }
+.dp-arrow.up    { top: 12px;    left: 50%; transform: translateX(-50%); border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 7px solid #fff; }
+.dp-arrow.down  { bottom: 12px; left: 50%; transform: translateX(-50%); border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid #fff; }
+.dp-arrow.left  { left: 12px;   top: 50%; transform: translateY(-50%); border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-right: 7px solid #fff; }
+.dp-arrow.right { right: 12px;  top: 50%; transform: translateY(-50%); border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 7px solid #fff; }
 
-/* ── Center buttons (Select / Start) ── */
+/* ── Center ── */
 .gp-center {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 10px; pointer-events: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
   -webkit-tap-highlight-color: transparent;
 }
 .meta-btn {
-  width: 48px; height: 22px; border-radius: 11px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.08);
+  width: 46px; height: 20px; border-radius: 10px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.06);
   display: flex; align-items: center; justify-content: center;
-  font-size: 8px; font-weight: 800; letter-spacing: .4px;
-  color: rgba(255,255,255,.3);
-  text-transform: uppercase;
-  transition: background .08s, color .08s;
-  pointer-events: auto;
+  font-size: 8px; font-weight: 800; letter-spacing: .3px;
+  color: rgba(255,255,255,.22); text-transform: uppercase;
 }
-.meta-btn.pressed { background: rgba(255,255,255,.14); color: rgba(255,255,255,.65); }
+.meta-btn.pressed { background: rgba(255,255,255,.14); color: rgba(255,255,255,.55); }
 
-/* ── ABXY diamond ── */
-.abxy-wrap {
-  width: 130px; height: 130px;
-  position: relative;
-  pointer-events: auto;
+/* ── ABXY ── */
+.abxy-zone {
+  width: 120px; height: 120px; position: relative;
   -webkit-tap-highlight-color: transparent;
 }
 .face-btn {
   position: absolute;
-  width: 42px; height: 42px; border-radius: 50%;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.10);
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
   display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 800; color: rgba(255,255,255,.35);
-  transition: background .08s, color .08s;
-  pointer-events: auto;
+  font-size: 12px; font-weight: 800; color: rgba(255,255,255,.28);
 }
-.face-btn.pressed { background: rgba(255,255,255,.16); color: rgba(255,255,255,.75); }
-/* Diamond positions */
-.face-btn.btn-x { top: 2px;  left: 50%; transform: translateX(-50%); }
-.face-btn.btn-y { top: 50%; left: 2px;  transform: translateY(-50%); }
-.face-btn.btn-a { top: 50%; right: 2px; transform: translateY(-50%); }
-.face-btn.btn-b { bottom: 2px; left: 50%; transform: translateX(-50%); }
+.face-btn.pressed { background: rgba(255,255,255,.16); color: rgba(255,255,255,.65); }
+.face-btn.btn-x { top: 0;    left: 50%; transform: translateX(-50%); }
+.face-btn.btn-a { top: 50%;  right: 0;  transform: translateY(-50%); }
+.face-btn.btn-b { bottom: 0; left: 50%; transform: translateX(-50%); }
+.face-btn.btn-y { top: 50%;  left: 0;   transform: translateY(-50%); }
 
-/* ═══════════════════════════════════════
-   RESPONSIVE
-   ═══════════════════════════════════════ */
-
-/* Landscape phones — shorter gamepad */
+/* ── Landscape short screens ── */
 @media (max-height: 480px) and (pointer: coarse) {
-  .gp-main { height: 140px; padding: 4px 10px 8px; }
-  .dpad-wrap, .abxy-wrap { width: 110px; height: 110px; }
-  .face-btn { width: 36px; height: 36px; font-size: 11px; }
-  .shoulder { width: 56px; height: 30px; font-size: 10px; }
-  .gp-shoulders { top: -38px; }
+  .gp-main { height: 130px; padding: 2px 10px 6px; }
+  .dpad-zone, .abxy-zone { width: 100px; height: 100px; }
+  .face-btn { width: 34px; height: 34px; font-size: 11px; }
 }

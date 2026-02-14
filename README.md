@@ -1,36 +1,51 @@
 # Web DS
 
-A lightweight wrapper for [desmond](https://github.com/js-emulators/desmond), adding local ROM caching and save management.
+Browser-based Nintendo DS emulator using [desmond](https://github.com/js-emulators/desmond), with local ROM hosting, persistent saves, and mobile touch controls.
 
-## Features
+## Setup
 
-- Loads a `.nds` ROM from `?rom=<url>` (ROM hosting must allow cross-origin requests (CORS) for remote URLs).
-- Caches downloaded ROMs in browser storage for faster reloads.
-- Save data with import/export/delete save tools.
+### 1. Split your ROM
+
+```bash
+chmod +x split-rom.sh
+./split-rom.sh path/to/game.nds
+```
+
+This creates a `rom/` folder with numbered chunks (`00.bin`, `01.bin`, …) and a `manifest.json`. Each chunk is under 25 MB so it fits within GitHub's upload limit.
+
+### 2. Deploy
+
+Push the whole project to GitHub Pages (or any static host):
+
+```
+index.html
+css/app.css
+js/boot.js
+js/desmond.min.js
+split-rom.sh
+rom/
+  manifest.json
+  00.bin
+  01.bin
+  ...
+```
+
+### Alternative: remote ROM URL
+
+Instead of local chunks, you can pass a direct URL:
+
+```
+https://yoursite.github.io/nds-player/?rom=https://example.com/game.nds
+```
+
+The remote server must support CORS. Local chunks are preferred since they avoid CORS entirely.
 
 ## Controls
 
-Keyboard mapping:
+**Keyboard:** Arrow keys (D-Pad), Z (A), X (B), S (X), A (Y), Q (L), W (R), Enter (Start), Shift (Select)
 
-- D-Pad: `↑ ↓ ← →`
-- `A`: `Z`
-- `B`: `X`
-- `X`: `S`
-- `Y`: `A`
-- `L / R`: `Q / W`
-- `Start`: `Enter`
-- `Select`: `Shift`
-
-Touch: click/tap the right-hand screen (bottom DS screen).
-
-Mobile Support is implemented with touch buttons at the bottom of the page.
+**Mobile:** Virtual gamepad appears automatically on touch devices. Tap the bottom DS screen for stylus input.
 
 ## Saves
 
-- Save files are stored in browser storage and restored on reload.
-- Use **Saves** panel to:
-  - Export save to `.dsv`
-  - Import `.dsv`/`.sav`
-  - Delete save data for current game
-
-If the app runs inside an iframe with restricted storage, use import/export as a fallback.
+Battery saves persist to IndexedDB automatically. Use the **Saves** panel to export/import `.dsv` files or delete save data.

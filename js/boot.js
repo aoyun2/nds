@@ -1,35 +1,34 @@
-// boot.js — ROM loader, responsive layout, virtual gamepad, save management
+// boot.js — chunk-based ROM loader, virtual gamepad, responsive layout
 (() => {
   "use strict";
 
-  // ═══════════════ CONFIG ═══════════════
-  const DEFAULT_ROM_URL = "https://files.catbox.moe/h99cuh.nds";
-  // ══════════════════════════════════════
-
   const $ = (id) => document.getElementById(id);
-  const isTouch = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+  const isTouchDevice = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
 
-  // ── Override desmond's showMsg ──
-  let _toastTimer = 0;
+  // ══════════════════════════════════════
+  // Override desmond's showMsg
+  // ══════════════════════════════════════
+  let _tt = 0;
   window.showMsg = (msg) => {
     const t = $("tagSave");
     if (!t) return;
     t.textContent = msg;
     t.className = "tag ok";
-    clearTimeout(_toastTimer);
-    _toastTimer = setTimeout(() => updateSaveTag(), 2000);
+    clearTimeout(_tt);
+    _tt = setTimeout(updateSaveTag, 2200);
   };
 
-  // ── Modal ──
-  function openModal(panel) {
+  // ══════════════════════════════════════
+  // Modal
+  // ══════════════════════════════════════
+  function openModal(p) {
     $("overlay").classList.add("open");
-    $("modalTitle").textContent = panel === "controls" ? "Controls" : "Saves";
-    $("panelControls").style.display = panel === "controls" ? "" : "none";
-    $("panelSaves").style.display = panel === "saves" ? "" : "none";
-    if (panel === "saves") refreshSaveStatus();
+    $("modalTitle").textContent = p === "controls" ? "Controls" : "Saves";
+    $("panelControls").style.display = p === "controls" ? "" : "none";
+    $("panelSaves").style.display = p === "saves" ? "" : "none";
+    if (p === "saves") refreshSaveStatus();
   }
   function closeModal() { $("overlay").classList.remove("open"); }
-
   $("btnControls").onclick = () => openModal("controls");
   $("btnSaves").onclick = () => openModal("saves");
   $("btnClose").onclick = closeModal;
@@ -40,17 +39,52 @@
     }
   });
 
-  // ── Formatting ──
-  const fmtMB = (b) => (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + " MB";
+  // ══════════════════════════════════════
+  // ROM loading: local chunks OR remote URL
+  // ══════════════════════════════════════
+  const fmtMB = (b) => (b / 1048576).toFixed(1) + " MB";
 
-  // ── ROM cache ──
-  function romCache() {
-    if (!window.localforage) return null;
-    return window.localforage.createInstance({ name: "nds_player", storeName: "rom_cache" });
+  async function loadROMChunks(onProgress) {
+    // Fetch manifest
+    const mResp = await fetch("./rom/manifest.json");
+    if (!mResp.ok) return null;
+    const manifest = await mResp.json();
+    const { chunks, totalBytes } = manifest;
+
+    onProgress(0, totalBytes, "Loading ROM chunks…");
+
+    // Fetch all chunks in parallel
+    const buffers = new Array(chunks);
+    let loaded = 0;
+
+    await Promise.all(
+      Array.from({ length: chunks }, (_, i) => {
+        const url = `./rom/${String(i).padStart(2, "0")}.bin`;
+        return fetch(url)
+          .then((r) => {
+            if (!r.ok) throw new Error(`Chunk ${i}: HTTP ${r.status}`);
+            return r.arrayBuffer();
+          })
+          .then((buf) => {
+            buffers[i] = new Uint8Array(buf);
+            loaded += buf.byteLength;
+            onProgress(loaded, totalBytes, `Chunk ${i + 1}/${chunks}`);
+          });
+      })
+    );
+
+    // Concatenate
+    const rom = new Uint8Array(totalBytes);
+    let off = 0;
+    for (const b of buffers) {
+      rom.set(b, off);
+      off += b.byteLength;
+    }
+    return rom;
   }
 
-  // ── Streaming download ──
-  async function fetchROM(url, onProgress) {
+  async function loadROMUrl(url, onProgress) {
+    onProgress(0, 0, "Downloading ROM…");
     const r = await fetch(url);
     if (!r.ok) throw new Error("HTTP " + r.status);
     const total = Number(r.headers.get("content-length")) || 0;
@@ -58,401 +92,268 @@
     if (r.body?.getReader) {
       const reader = r.body.getReader();
       const chunks = [];
-      let received = 0;
+      let recv = 0;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         chunks.push(value);
-        received += value.byteLength;
-        onProgress(received, total);
+        recv += value.byteLength;
+        onProgress(recv, total, "Downloading…");
       }
-      const out = new Uint8Array(received);
+      const out = new Uint8Array(recv);
       let off = 0;
       for (const c of chunks) { out.set(c, off); off += c.byteLength; }
       return out;
     }
-    // Fallback for browsers without ReadableStream
+
     const buf = new Uint8Array(await r.arrayBuffer());
-    onProgress(buf.byteLength, buf.byteLength);
+    onProgress(buf.byteLength, buf.byteLength, "Downloaded");
     return buf;
   }
 
-  // ═══════════════════════════════════════
-  // RESPONSIVE SCREEN LAYOUT
-  // ═══════════════════════════════════════
-  let screenTop = null, screenBot = null;
-  let layoutMode = "none"; // "side-by-side" | "stacked"
+  // ══════════════════════════════════════
+  // Screen layout (responsive)
+  // ══════════════════════════════════════
+  let canvasTop = null, canvasBot = null;
 
-  function applyLayout(player) {
-    const setup = () => {
+  function attachScreens(player) {
+    const go = () => {
       const sr = player.shadowRoot;
       if (!sr) return false;
       const cvs = sr.querySelectorAll("canvas");
       if (cvs.length < 2) return false;
-      screenTop = cvs[0];
-      screenBot = cvs[1];
-
+      canvasTop = cvs[0];
+      canvasBot = cvs[1];
       const base = "position:fixed;image-rendering:pixelated;z-index:1;transform-origin:50% 50%;";
-      screenTop.style.cssText = base;
-      screenBot.style.cssText = base;
-
-      resize();
+      canvasTop.style.cssText = base;
+      canvasBot.style.cssText = base;
+      layoutScreens();
       return true;
     };
-
-    if (setup()) return;
-    const iv = setInterval(() => { if (setup()) clearInterval(iv); }, 80);
-    setTimeout(() => clearInterval(iv), 8000);
+    if (go()) return;
+    const iv = setInterval(() => { if (go()) clearInterval(iv); }, 100);
+    setTimeout(() => clearInterval(iv), 10000);
   }
 
-  function resize() {
-    if (!screenTop || !screenBot) return;
-
-    const W = innerWidth;
-    const H = innerHeight;
-    const gpH = isTouch ? getGamepadHeight() : 0;
-    const hudH = 40;
-    const availH = H - gpH;
-    const portrait = W < 640 && W < H;
+  function layoutScreens() {
+    if (!canvasTop || !canvasBot) return;
+    const W = innerWidth, H = innerHeight;
+    const gpH = isTouchDevice && $("gamepad").classList.contains("active")
+      ? $("gamepad").offsetHeight : 0;
+    const useH = H - gpH;
+    const portrait = isTouchDevice && (W < H);
 
     if (portrait) {
-      // Stacked: top screen above, bottom screen below
-      layoutMode = "stacked";
-      const gap = 4;
-      const halfH = (availH - hudH - gap) / 2;
-      const s = Math.min(W / 256, halfH / 192);
-      const totalScreenH = s * 192 * 2 + gap;
-      const topY = hudH + (availH - hudH - totalScreenH) / 2 + s * 192 / 2;
-      const botY = topY + s * 192 + gap;
+      // Stacked
+      const gap = 2;
+      const slotH = (useH - 36 - gap) / 2; // 36px for HUD
+      const s = Math.min(W / 256, slotH / 192);
+      const block = s * 192;
+      const topY = 36 + (useH - 36 - block * 2 - gap) / 2 + block / 2;
 
-      screenTop.style.left = W / 2 + "px";
-      screenTop.style.top = topY + "px";
-      screenTop.style.transform = `translate(-50%,-50%) scale(${s})`;
+      canvasTop.style.left = W / 2 + "px";
+      canvasTop.style.top = topY + "px";
+      canvasTop.style.transform = `translate(-50%,-50%) scale(${s})`;
 
-      screenBot.style.left = W / 2 + "px";
-      screenBot.style.top = botY + "px";
-      screenBot.style.transform = `translate(-50%,-50%) scale(${s})`;
+      canvasBot.style.left = W / 2 + "px";
+      canvasBot.style.top = (topY + block + gap) + "px";
+      canvasBot.style.transform = `translate(-50%,-50%) scale(${s})`;
     } else {
-      // Side-by-side
-      layoutMode = "side-by-side";
+      // Side by side
       const half = W / 2;
-      const s = Math.min(half / 256, availH / 192);
-      const cy = (availH) / 2;
+      const s = Math.min(half / 256, useH / 192);
 
-      screenTop.style.left = half * 0.5 + "px";
-      screenTop.style.top = cy + "px";
-      screenTop.style.transform = `translate(-50%,-50%) scale(${s})`;
+      canvasTop.style.left = half * 0.5 + "px";
+      canvasTop.style.top = useH / 2 + "px";
+      canvasTop.style.transform = `translate(-50%,-50%) scale(${s})`;
 
-      screenBot.style.left = half * 1.5 + "px";
-      screenBot.style.top = cy + "px";
-      screenBot.style.transform = `translate(-50%,-50%) scale(${s})`;
+      canvasBot.style.left = half * 1.5 + "px";
+      canvasBot.style.top = useH / 2 + "px";
+      canvasBot.style.transform = `translate(-50%,-50%) scale(${s})`;
     }
   }
 
-  function getGamepadHeight() {
-    const gp = $("gamepad");
-    if (!gp || !gp.classList.contains("active")) return 0;
-    return gp.offsetHeight || 200;
-  }
+  addEventListener("resize", layoutScreens, { passive: true });
 
-  addEventListener("resize", () => { resize(); }, { passive: true });
-
-  // ═══════════════════════════════════════
-  // VIRTUAL GAMEPAD (touch controls)
-  // ═══════════════════════════════════════
-  //
-  // emuKeyState indices:
-  //   0:right 1:left 2:down 3:up 4:select 5:start
-  //   6:b 7:a 8:y 9:x 10:l 11:r
-  //
-  // Screen touch: touched, touchX, touchY (globals from desmond)
-
-  let soundInited = false;
+  // ══════════════════════════════════════
+  // Sound
+  // ══════════════════════════════════════
+  let _soundOk = false;
   function ensureSound() {
-    if (soundInited) return;
+    if (_soundOk) return;
     if (typeof tryInitSound === "function") {
-      try { tryInitSound(); soundInited = true; } catch (e) { console.warn("sound:", e); }
+      try { tryInitSound(); _soundOk = true; } catch {}
     }
   }
+
+  function showUnmute() {
+    const el = $("unmute");
+    el.classList.add("show");
+    const h = () => {
+      el.classList.remove("show");
+      ensureSound();
+      document.removeEventListener("click", h, true);
+      document.removeEventListener("touchstart", h, true);
+      document.removeEventListener("keydown", h, true);
+    };
+    document.addEventListener("click", h, true);
+    document.addEventListener("touchstart", h, true);
+    document.addEventListener("keydown", h, true);
+  }
+
+  // ══════════════════════════════════════
+  // VIRTUAL GAMEPAD (touch)
+  // ══════════════════════════════════════
+  //
+  // emuKeyState: 0=right 1=left 2=down 3=up 4=select 5=start
+  //              6=b 7=a 8=y 9=x 10=l 11=r
 
   function initGamepad() {
-    if (!isTouch) return;
-    const gp = $("gamepad");
-    gp.classList.add("active");
+    if (!isTouchDevice) return;
+    $("gamepad").classList.add("active");
+    requestAnimationFrame(layoutScreens);
 
-    // After showing gamepad, recalc layout
-    requestAnimationFrame(() => resize());
+    // Process all current touches into a set of pressed button indices + screen touch
+    function process(touches) {
+      const pressed = new Set();
+      let scrX = -1, scrY = -1, scrHit = false;
 
-    // ── Track active touches ──
-    const activeTouches = new Map(); // touchId -> { type, data }
+      for (let i = 0; i < touches.length; i++) {
+        const t = touches[i];
+        const x = t.clientX, y = t.clientY;
 
-    function handleTouchEvent(e) {
-      // Don't interfere with modal or HUD buttons
-      if ($("overlay").classList.contains("open")) return;
-      if (e.target.closest(".hud")) return;
-      if (e.target.closest("#unmute")) return;
+        // ── D-pad ──
+        const dp = $("dpadZone");
+        const dr = dp.getBoundingClientRect();
+        if (x >= dr.left && x <= dr.right && y >= dr.top && y <= dr.bottom) {
+          const cx = dr.left + dr.width / 2;
+          const cy = dr.top + dr.height / 2;
+          const dx = x - cx;
+          const dy = y - cy;
+          const thr = dr.width * 0.15; // ~18px on 120px zone
+          if (dx > thr) pressed.add(0);   // right
+          if (dx < -thr) pressed.add(1);  // left
+          if (dy > thr) pressed.add(2);   // down
+          if (dy < -thr) pressed.add(3);  // up
+          continue;
+        }
 
-      ensureSound();
+        // ── ABXY: find closest face button ──
+        const az = $("abxyZone");
+        const ar = az.getBoundingClientRect();
+        if (x >= ar.left && x <= ar.right && y >= ar.top && y <= ar.bottom) {
+          let best = null, bestD = 999;
+          for (const fb of az.querySelectorAll(".face-btn")) {
+            const fr = fb.getBoundingClientRect();
+            const d = Math.hypot(x - (fr.left + fr.width / 2), y - (fr.top + fr.height / 2));
+            if (d < bestD) { bestD = d; best = fb; }
+          }
+          if (best && bestD < 48) {
+            pressed.add(parseInt(best.dataset.btn));
+          }
+          continue;
+        }
 
-      if (typeof emuIsRunning !== "undefined" && !emuIsRunning) return;
+        // ── Generic data-btn (shoulders, select, start) ──
+        const el = document.elementFromPoint(x, y);
+        if (el) {
+          const btn = el.closest("[data-btn]");
+          if (btn && btn.closest("#gamepad")) {
+            pressed.add(parseInt(btn.dataset.btn));
+            continue;
+          }
+        }
 
-      e.preventDefault();
-
-      // Process all current touches
-      const gpButtons = new Set(); // button indices pressed by gamepad
-      let screenTouch = null;
-
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches[i];
-        const result = classifyTouch(t);
-
-        if (result.type === "button") {
-          for (const b of result.buttons) gpButtons.add(b);
-        } else if (result.type === "dpad") {
-          for (const b of result.buttons) gpButtons.add(b);
-        } else if (result.type === "screen") {
-          screenTouch = result;
+        // ── Bottom screen touch ──
+        if (canvasBot) {
+          const sr = canvasBot.getBoundingClientRect();
+          if (x >= sr.left && x <= sr.right && y >= sr.top && y <= sr.bottom) {
+            scrX = ((x - sr.left) / sr.width) * 256;
+            scrY = ((y - sr.top) / sr.height) * 192;
+            scrX = Math.max(0, Math.min(255, scrX));
+            scrY = Math.max(0, Math.min(191, scrY));
+            scrHit = true;
+          }
         }
       }
 
-      // Update emuKeyState for gamepad buttons
+      return { pressed, scrHit, scrX, scrY };
+    }
+
+    function apply({ pressed, scrHit, scrX, scrY }) {
+      // Write to desmond globals
       if (typeof emuKeyState !== "undefined") {
-        for (let i = 0; i < 12; i++) {
-          emuKeyState[i] = gpButtons.has(i);
-        }
+        for (let i = 0; i < 12; i++) emuKeyState[i] = pressed.has(i);
+      }
+      if (typeof window.touched !== "undefined") {
+        window.touched = scrHit ? 1 : 0;
+        if (scrHit) { window.touchX = scrX; window.touchY = scrY; }
       }
 
-      // Update screen touch
-      if (typeof touched !== "undefined") {
-        if (screenTouch) {
-          window.touched = 1;
-          window.touchX = screenTouch.x;
-          window.touchY = screenTouch.y;
-        } else {
-          window.touched = 0;
-        }
-      }
+      // Visual feedback
+      $("arU").classList.toggle("lit", pressed.has(3));
+      $("arD").classList.toggle("lit", pressed.has(2));
+      $("arL").classList.toggle("lit", pressed.has(1));
+      $("arR").classList.toggle("lit", pressed.has(0));
 
-      // Update visual feedback
-      updateVisuals(gpButtons);
-    }
-
-    function classifyTouch(t) {
-      const el = document.elementFromPoint(t.clientX, t.clientY);
-
-      // Check gamepad buttons (data-btn attribute)
-      if (el) {
-        const btnEl = el.closest("[data-btn]");
-        if (btnEl) {
-          return { type: "button", buttons: [parseInt(btnEl.dataset.btn)] };
-        }
-      }
-
-      // Check D-pad
-      const dpadEl = $("dpad");
-      if (dpadEl) {
-        const rect = dpadEl.parentElement.getBoundingClientRect();
-        if (t.clientX >= rect.left && t.clientX <= rect.right &&
-            t.clientY >= rect.top && t.clientY <= rect.bottom) {
-          return classifyDpad(t, rect);
-        }
-      }
-
-      // Check ABXY area (touches between button centers)
-      const abxyEl = $("abxy");
-      if (abxyEl) {
-        const rect = abxyEl.getBoundingClientRect();
-        if (t.clientX >= rect.left && t.clientX <= rect.right &&
-            t.clientY >= rect.top && t.clientY <= rect.bottom) {
-          return classifyABXY(t, rect);
-        }
-      }
-
-      // Check bottom screen
-      if (screenBot) {
-        const rect = screenBot.getBoundingClientRect();
-        if (t.clientX >= rect.left && t.clientX <= rect.right &&
-            t.clientY >= rect.top && t.clientY <= rect.bottom) {
-          const x = ((t.clientX - rect.left) / rect.width) * 256;
-          const y = ((t.clientY - rect.top) / rect.height) * 192;
-          return { type: "screen", x: Math.max(0, Math.min(255, x)), y: Math.max(0, Math.min(191, y)) };
-        }
-      }
-
-      return { type: "none" };
-    }
-
-    function classifyDpad(t, rect) {
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dx = t.clientX - cx;
-      const dy = t.clientY - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const deadzone = rect.width * 0.10;
-      const buttons = [];
-
-      if (dist > deadzone) {
-        const angle = Math.atan2(dy, dx); // Right=0, Down=+π/2, Left=±π, Up=-π/2
-        // Each direction covers 90° centered on its axis, giving 45° diagonal overlap
-        const SLICE = Math.PI * 3 / 8; // 67.5° half-width
-        if (Math.abs(angle) < SLICE) buttons.push(0);                // right (index 0)
-        if (angle > Math.PI / 2 - SLICE && angle < Math.PI / 2 + SLICE) buttons.push(2); // down
-        if (Math.abs(angle) > Math.PI - SLICE) buttons.push(1);      // left
-        if (angle < -Math.PI / 2 + SLICE && angle > -Math.PI / 2 - SLICE) buttons.push(3); // up
-      }
-
-      return { type: "dpad", buttons };
-    }
-
-    function classifyABXY(t, rect) {
-      // Find closest face button
-      const wrap = $("abxy");
-      const fbtns = wrap.querySelectorAll(".face-btn");
-      let closest = null, closestDist = Infinity;
-
-      for (const fb of fbtns) {
-        const r = fb.getBoundingClientRect();
-        const cx = r.left + r.width / 2;
-        const cy = r.top + r.height / 2;
-        const d = Math.hypot(t.clientX - cx, t.clientY - cy);
-        if (d < closestDist) {
-          closestDist = d;
-          closest = fb;
-        }
-      }
-
-      if (closest && closestDist < 50) {
-        return { type: "button", buttons: [parseInt(closest.dataset.btn)] };
-      }
-      return { type: "none" };
-    }
-
-    // ── Visual feedback ──
-    function updateVisuals(pressed) {
-      // D-pad arrows
-      $("arr-up").classList.toggle("lit", pressed.has(3));
-      $("arr-down").classList.toggle("lit", pressed.has(2));
-      $("arr-left").classList.toggle("lit", pressed.has(1));
-      $("arr-right").classList.toggle("lit", pressed.has(0));
-
-      // All [data-btn] elements
-      document.querySelectorAll("[data-btn]").forEach((el) => {
+      document.querySelectorAll("#gamepad [data-btn]").forEach((el) => {
         el.classList.toggle("pressed", pressed.has(parseInt(el.dataset.btn)));
       });
     }
 
-    // ── Touch end: clear everything ──
-    function handleTouchEnd(e) {
+    function onTouch(e) {
+      // Don't block modal / HUD interaction
+      if ($("overlay").classList.contains("open")) return;
+      if (e.target.closest(".hud")) return;
+      if (e.target.closest("#unmute")) return;
+
+      ensureSound();
+      if (typeof emuIsRunning === "undefined" || !emuIsRunning) return;
+
+      e.preventDefault();
+      apply(process(e.touches));
+    }
+
+    function onTouchEnd(e) {
       if ($("overlay").classList.contains("open")) return;
       if (e.target.closest(".hud")) return;
       if (e.target.closest("#unmute")) return;
 
       e.preventDefault();
-
-      // Re-process remaining touches
-      const gpButtons = new Set();
-      let screenTouch = null;
-
-      for (let i = 0; i < e.touches.length; i++) {
-        const t = e.touches[i];
-        const result = classifyTouch(t);
-        if (result.type === "button" || result.type === "dpad") {
-          for (const b of result.buttons) gpButtons.add(b);
-        } else if (result.type === "screen") {
-          screenTouch = result;
-        }
-      }
-
-      if (typeof emuKeyState !== "undefined") {
-        for (let i = 0; i < 12; i++) emuKeyState[i] = gpButtons.has(i);
-      }
-      if (typeof touched !== "undefined") {
-        window.touched = screenTouch ? 1 : 0;
-        if (screenTouch) {
-          window.touchX = screenTouch.x;
-          window.touchY = screenTouch.y;
-        }
-      }
-      updateVisuals(gpButtons);
+      apply(process(e.touches));
     }
 
-    // Register on window to catch all touches
-    window.addEventListener("touchstart", handleTouchEvent, { passive: false, capture: true });
-    window.addEventListener("touchmove", handleTouchEvent, { passive: false, capture: true });
-    window.addEventListener("touchend", handleTouchEnd, { passive: false, capture: true });
-    window.addEventListener("touchcancel", handleTouchEnd, { passive: false, capture: true });
+    // Capture phase so we run before desmond's (now disabled) handler
+    window.addEventListener("touchstart", onTouch, { passive: false, capture: true });
+    window.addEventListener("touchmove", onTouch, { passive: false, capture: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: false, capture: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: false, capture: true });
   }
 
-  // ═══════════════════════════════════════
-  // DESKTOP MOUSE → SCREEN TOUCH
-  // ═══════════════════════════════════════
-  // Desmond's mouse handler works but depends on screenCanvas[1] which
-  // references the shadow DOM canvas. It should work as-is for desktop.
-  // We only need gamepad touch handling for mobile.
-
-  // ═══════════════════════════════════════
-  // SOUND INIT
-  // ═══════════════════════════════════════
-  function initSoundOverlay() {
-    const el = $("unmute");
-    el.classList.add("show");
-
-    const handler = () => {
-      el.classList.remove("show");
-      ensureSound();
-      document.removeEventListener("click", handler, true);
-      document.removeEventListener("touchstart", handler, true);
-      document.removeEventListener("keydown", handler, true);
-    };
-    document.addEventListener("click", handler, true);
-    document.addEventListener("touchstart", handler, true);
-    document.addEventListener("keydown", handler, true);
-  }
-
-  // ═══════════════════════════════════════
-  // SAVE HELPERS
-  // ═══════════════════════════════════════
+  // ══════════════════════════════════════
+  // Save helpers
+  // ══════════════════════════════════════
   function getSaveKey() {
     return (typeof gameID !== "undefined" && gameID) ? "sav-" + gameID : null;
   }
 
   function updateSaveTag() {
-    const key = getSaveKey();
-    const tag = $("tagSave");
-    if (!window.localforage || !key) {
-      tag.textContent = "save: —";
-      tag.className = "tag";
-      return;
-    }
+    const key = getSaveKey(), tag = $("tagSave");
+    if (!window.localforage || !key) { tag.textContent = "save: —"; tag.className = "tag"; return; }
     localforage.getItem(key).then((d) => {
-      if (d?.length) {
-        tag.textContent = "save: " + (d.length / 1024).toFixed(0) + " kb";
-        tag.className = "tag ok";
-      } else {
-        tag.textContent = "save: none";
-        tag.className = "tag warn";
-      }
-    }).catch(() => {
-      tag.textContent = "save: err";
-      tag.className = "tag warn";
-    });
+      if (d?.length) { tag.textContent = "save: " + (d.length / 1024 | 0) + " kb"; tag.className = "tag ok"; }
+      else { tag.textContent = "save: none"; tag.className = "tag warn"; }
+    }).catch(() => { tag.textContent = "save: err"; tag.className = "tag warn"; });
   }
 
   async function refreshSaveStatus() {
     const key = getSaveKey();
     $("saveKey").textContent = "key: " + (key || "—");
-    if (!window.localforage || !key) {
-      $("saveStatus").textContent = "not ready";
-      return;
-    }
+    if (!window.localforage || !key) { $("saveStatus").textContent = "not ready"; return; }
     try {
       const d = await localforage.getItem(key);
-      $("saveStatus").textContent = d
-        ? `${(d.length / 1024).toFixed(0)} KB stored`
-        : "empty — save in-game first";
-    } catch {
-      $("saveStatus").textContent = "storage error";
-    }
+      $("saveStatus").textContent = d ? `${(d.length / 1024 | 0)} KB stored` : "empty";
+    } catch { $("saveStatus").textContent = "storage error"; }
   }
 
   $("btnExport").onclick = async () => {
@@ -468,171 +369,124 @@
   };
 
   $("importFile").addEventListener("change", async (e) => {
-    const key = getSaveKey();
-    const f = e.target.files?.[0];
+    const key = getSaveKey(), f = e.target.files?.[0];
     e.target.value = "";
     if (!localforage || !key || !f) return;
-    if (f.size > 3145728) return alert("Too large for a DS save.");
-    const buf = new Uint8Array(await f.arrayBuffer());
-    await localforage.setItem(key, buf);
+    if (f.size > 3145728) return alert("Too large.");
+    await localforage.setItem(key, new Uint8Array(await f.arrayBuffer()));
     location.reload();
   });
 
   $("btnClear").onclick = async () => {
     const key = getSaveKey();
     if (!localforage || !key) return;
-    if (!confirm("Delete save data?")) return;
+    if (!confirm("Delete save?")) return;
     await localforage.removeItem(key);
     location.reload();
   };
 
   // ── HUD auto-dim ──
-  let dimTimer = 0;
-  function resetHudDim() {
+  let _dim = 0;
+  function nudgeHud() {
     $("hud").classList.remove("dim");
-    clearTimeout(dimTimer);
-    dimTimer = setTimeout(() => $("hud").classList.add("dim"), 5000);
+    clearTimeout(_dim);
+    _dim = setTimeout(() => $("hud").classList.add("dim"), 5000);
   }
-  ["mousemove", "touchstart", "keydown"].forEach((ev) =>
-    document.addEventListener(ev, resetHudDim, { passive: true })
+  ["mousemove", "touchstart", "keydown"].forEach((e) =>
+    document.addEventListener(e, nudgeHud, { passive: true })
   );
-  resetHudDim();
+  nudgeHud();
 
-  // ═══════════════════════════════════════
-  // WASM READY CHECK
-  // ═══════════════════════════════════════
-  // Desmond's WASM loads asynchronously. On slow connections (mobile),
-  // our ROM might be ready before the WASM. Wait for Module to be usable.
-  function waitForWasm(timeout = 15000) {
-    return new Promise((resolve, reject) => {
-      if (typeof Module !== "undefined" && Module._prepareRomBuffer) {
-        return resolve();
-      }
-      const start = Date.now();
+  // ══════════════════════════════════════
+  // Wait for desmond WASM
+  // ══════════════════════════════════════
+  function waitForWasm(ms = 20000) {
+    return new Promise((ok, fail) => {
+      if (typeof Module !== "undefined" && Module._prepareRomBuffer) return ok();
+      const t0 = Date.now();
       const iv = setInterval(() => {
-        if (typeof Module !== "undefined" && Module._prepareRomBuffer) {
-          clearInterval(iv);
-          resolve();
-        } else if (Date.now() - start > timeout) {
-          clearInterval(iv);
-          reject(new Error("WASM load timeout — try refreshing"));
-        }
-      }, 100);
+        if (typeof Module !== "undefined" && Module._prepareRomBuffer) { clearInterval(iv); ok(); }
+        else if (Date.now() - t0 > ms) { clearInterval(iv); fail(new Error("WASM timed out")); }
+      }, 150);
     });
   }
 
-  // ═══════════════════════════════════════
-  // MAIN BOOT
-  // ═══════════════════════════════════════
+  // ══════════════════════════════════════
+  // Boot
+  // ══════════════════════════════════════
+  function progress(recv, total, msg) {
+    const p = total > 0 ? Math.min(100, recv / total * 100) : 0;
+    $("bar").style.width = p.toFixed(1) + "%";
+    $("pct").textContent = total > 0 ? (p | 0) + "%" : "…";
+    $("dl").textContent = fmtMB(recv) + (total > 0 ? " / " + fmtMB(total) : "");
+    if (msg) $("sub").textContent = msg;
+  }
+
   async function boot() {
-    const params = new URLSearchParams(location.search);
-    const ROM_URL = params.get("rom") || DEFAULT_ROM_URL;
+    const romUrl = new URLSearchParams(location.search).get("rom");
 
-    if (!ROM_URL) {
-      $("loaderTitle").textContent = "No ROM";
-      $("sub").textContent = "Set DEFAULT_ROM_URL in js/boot.js or use ?rom=<url>";
-      return;
-    }
-
-    // Request persistent storage
-    try { await navigator.storage?.persist?.(); } catch {}
-
-    // ── Wait for WASM ──
+    // 1. Wait for WASM core
     $("sub").textContent = "Loading emulator core…";
-    try {
-      await waitForWasm();
-    } catch (err) {
-      $("sub").textContent = err.message;
+    try { await waitForWasm(); } catch (e) {
+      $("sub").textContent = e.message;
       return;
     }
 
-    // ── Download or cache ROM ──
-    let romU8 = null;
-    const cache = romCache();
+    // 2. Load ROM — try local chunks first, then URL param
+    let rom = null;
 
-    if (cache) {
-      try {
-        const cached = await cache.getItem(ROM_URL);
-        if (cached?.byteLength > 1024) {
-          romU8 = new Uint8Array(cached);
-          $("bar").style.width = "100%";
-          $("pct").textContent = "cached";
-          $("dl").textContent = fmtMB(romU8.byteLength);
-          $("sub").textContent = "Loaded from cache";
-        }
-      } catch {}
-    }
+    try {
+      rom = await loadROMChunks(progress);
+    } catch {}
 
-    if (!romU8) {
-      $("sub").textContent = "Downloading ROM…";
-      let lastT = performance.now(), lastB = 0, ema = 0;
+    if (!rom && romUrl) {
       try {
-        romU8 = await fetchROM(ROM_URL, (recv, total) => {
-          const now = performance.now();
-          const dt = (now - lastT) / 1000;
-          if (dt >= 0.25) {
-            ema = ema ? ema * 0.75 + ((recv - lastB) / dt) * 0.25 : (recv - lastB) / dt;
-            lastT = now; lastB = recv;
-          }
-          const p = total ? Math.min(100, recv / total * 100) : 50;
-          $("bar").style.width = p.toFixed(1) + "%";
-          $("pct").textContent = total ? Math.floor(p) + "%" : "…";
-          $("dl").textContent = fmtMB(recv) + (total ? " / " + fmtMB(total) : "");
-        });
-      } catch (err) {
-        $("sub").textContent = "Download failed: " + err.message;
+        rom = await loadROMUrl(romUrl, progress);
+      } catch (e) {
+        $("sub").textContent = "ROM download failed: " + e.message;
         return;
       }
-
-      $("bar").style.width = "100%";
-      $("pct").textContent = "100%";
-
-      if (cache) {
-        try { await cache.setItem(ROM_URL, romU8.buffer.slice(0)); } catch {}
-      }
     }
 
-    // ── Start emulator ──
-    $("sub").textContent = "Starting emulator…";
+    if (!rom) {
+      $("loaderTitle").textContent = "No ROM found";
+      $("sub").textContent = "Add rom/ chunks via split-rom.sh, or use ?rom=<url>";
+      return;
+    }
 
-    const blobUrl = URL.createObjectURL(new Blob([romU8], { type: "application/octet-stream" }));
+    $("bar").style.width = "100%";
+    $("pct").textContent = "100%";
+    $("sub").textContent = "Starting…";
+
+    // 3. Feed to emulator
+    try { await navigator.storage?.persist?.(); } catch {}
+
+    const blob = URL.createObjectURL(new Blob([rom], { type: "application/octet-stream" }));
     const player = $("player");
 
-    player.loadURL(blobUrl, () => {
-      // Hide loader
+    player.loadURL(blob, () => {
       $("loader").style.display = "none";
-
-      // Layout
-      applyLayout(player);
-
-      // Virtual gamepad (mobile)
+      attachScreens(player);
       initGamepad();
-
-      // Sound overlay
-      initSoundOverlay();
-
-      // Save tracking
-      setTimeout(updateSaveTag, 500);
+      showUnmute();
+      setTimeout(updateSaveTag, 600);
       setInterval(updateSaveTag, 4000);
-
-      console.log("[boot] ROM loaded, emuIsRunning:", typeof emuIsRunning !== "undefined" ? emuIsRunning : "n/a");
     });
 
-    // Fallback timeout
+    // Fallback
     setTimeout(() => {
       if ($("loader").style.display !== "none") {
-        applyLayout(player);
-        initGamepad();
         $("loader").style.display = "none";
-        console.warn("[boot] Fallback: forced loader hide");
+        attachScreens(player);
+        initGamepad();
       }
-    }, 8000);
+    }, 10000);
   }
 
   addEventListener("load", () => {
-    boot().catch((err) => {
-      console.error("[boot]", err);
-      $("sub").textContent = "Error: " + err.message;
+    boot().catch((e) => {
+      console.error("[boot]", e);
+      $("sub").textContent = "Error: " + e.message;
     });
   });
 })();
