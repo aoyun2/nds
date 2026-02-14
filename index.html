@@ -74,7 +74,7 @@
       <div id="panelSaves" style="display:none;">
         <div class="section">
           <div class="section-label">Auto-save</div>
-          <div class="info">Battery saves are persisted to IndexedDB automatically whenever the game writes save data. On reload, saves restore before the ROM boots.</div>
+          <div class="info">Battery saves are written to the browser storage automatically whenever the game writes save data. On reload, saves restore before the ROM boots.</div>
           <div class="actions">
             <button class="hbtn" id="btnExport">Export .dsv</button>
             <label class="hbtn" for="importFile" style="cursor:pointer;">Import .dsv</label>
@@ -86,7 +86,7 @@
         </div>
         <div class="section">
           <div class="section-label">Embed note</div>
-          <div class="info">If embedded in an iframe (e.g. Google Sites), browser storage may be blocked. Open this page directly in a new tab for reliable saves.</div>
+          <div class="info">If embedded in an iframe, browser storage may be blocked. In that case, use the Import/Export .dsv feature.</div>
         </div>
       </div>
     </div>
