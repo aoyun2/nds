@@ -23,6 +23,15 @@ Keyboard mapping:
 
 Touch: click/tap the right-hand screen (bottom DS screen).
 
+On phones/tablets (or coarse pointers), on-screen controls are shown automatically:
+
+- D-pad
+- A/B/X/Y
+- L/R
+- Start/Select
+
+In portrait mode, the DS screens stack vertically for a better mobile fit.
+
 ## Saves
 
 - Save files are stored in browser storage and restored on reload.

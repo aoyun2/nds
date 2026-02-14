@@ -24,6 +24,28 @@
   <!-- Emulator -->
   <desmond-player id="player"></desmond-player>
 
+  <!-- Mobile touch controls -->
+  <div id="touchControls" aria-label="Touch controls" role="group">
+    <div class="touch-left" aria-label="D-pad">
+      <button class="touch-btn dpad up" data-key="ArrowUp" aria-label="Up">▲</button>
+      <button class="touch-btn dpad left" data-key="ArrowLeft" aria-label="Left">◀</button>
+      <button class="touch-btn dpad right" data-key="ArrowRight" aria-label="Right">▶</button>
+      <button class="touch-btn dpad down" data-key="ArrowDown" aria-label="Down">▼</button>
+    </div>
+    <div class="touch-mid">
+      <button class="touch-btn util" data-key="Shift" aria-label="Select">Select</button>
+      <button class="touch-btn util" data-key="Enter" aria-label="Start">Start</button>
+    </div>
+    <div class="touch-right" aria-label="Face buttons">
+      <button class="touch-btn face y" data-key="a" aria-label="Y">Y</button>
+      <button class="touch-btn face x" data-key="s" aria-label="X">X</button>
+      <button class="touch-btn face b" data-key="x" aria-label="B">B</button>
+      <button class="touch-btn face a" data-key="z" aria-label="A">A</button>
+      <button class="touch-btn shoulder l" data-key="q" aria-label="L">L</button>
+      <button class="touch-btn shoulder r" data-key="w" aria-label="R">R</button>
+    </div>
+  </div>
+
   <!-- Loader -->
   <div id="loader">
     <div class="loader-card">
@@ -68,7 +90,7 @@
         </div>
         <div class="section">
           <div class="section-label">Touch</div>
-          <div class="info">Click or tap the right-side screen (bottom DS screen) for touch input. Screens display side-by-side: left = top, right = bottom.</div>
+          <div class="info">Click or tap the bottom DS screen for stylus input. On phones, on-screen controls appear automatically for D-pad, face buttons, shoulders, start, and select.</div>
         </div>
       </div>
       <div id="panelSaves" style="display:none;">

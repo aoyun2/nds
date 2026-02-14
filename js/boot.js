@@ -44,6 +44,91 @@
   // ── Formatting ──
   const fmtMB = (b) => (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + " MB";
 
+  const KEY_CODE = {
+    ArrowUp: 38,
+    ArrowDown: 40,
+    ArrowLeft: 37,
+    ArrowRight: 39,
+    Enter: 13,
+    Shift: 16,
+    a: 65,
+    q: 81,
+    s: 83,
+    w: 87,
+    x: 88,
+    z: 90,
+  };
+
+  function emuKey(key, type) {
+    const code = KEY_CODE[key] || 0;
+    const evt = new KeyboardEvent(type, {
+      key,
+      code: key.startsWith("Arrow") ? key : `Key${key.toUpperCase?.() || ""}`,
+      which: code,
+      keyCode: code,
+      bubbles: true,
+      cancelable: true,
+    });
+    if (code) {
+      try {
+        Object.defineProperty(evt, "which", { get: () => code });
+        Object.defineProperty(evt, "keyCode", { get: () => code });
+      } catch {}
+    }
+    document.dispatchEvent(evt);
+    window.dispatchEvent(evt);
+  }
+
+  function initTouchControls() {
+    const root = $("touchControls");
+    if (!root) return;
+
+    const held = new Map();
+    const release = (btn, pointerId) => {
+      const data = held.get(pointerId);
+      if (!data) return;
+      emuKey(data.key, "keyup");
+      data.btn.classList.remove("active");
+      held.delete(pointerId);
+      if (btn?.releasePointerCapture) {
+        try { btn.releasePointerCapture(pointerId); } catch {}
+      }
+    };
+
+    root.querySelectorAll(".touch-btn[data-key]").forEach((btn) => {
+      const key = btn.dataset.key;
+      if (!key) return;
+
+      btn.addEventListener("contextmenu", (e) => e.preventDefault());
+
+      btn.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        if (held.has(e.pointerId)) return;
+        held.set(e.pointerId, { key, btn });
+        btn.classList.add("active");
+        if (btn.setPointerCapture) btn.setPointerCapture(e.pointerId);
+        emuKey(key, "keydown");
+      });
+
+      btn.addEventListener("pointerup", (e) => {
+        e.preventDefault();
+        release(btn, e.pointerId);
+      });
+      btn.addEventListener("pointercancel", (e) => release(btn, e.pointerId));
+      btn.addEventListener("pointerleave", (e) => {
+        if (e.pointerType === "mouse" && e.buttons === 0) release(btn, e.pointerId);
+      });
+    });
+
+    window.addEventListener("blur", () => {
+      for (const [id, data] of held) {
+        emuKey(data.key, "keyup");
+        data.btn.classList.remove("active");
+        held.delete(id);
+      }
+    });
+  }
+
   // ── ROM cache via localforage (bundled in desmond) ──
   function romCache() {
     if (!window.localforage) return null;
@@ -94,8 +179,22 @@
 
       const resize = () => {
         const W = innerWidth, H = innerHeight;
+        const portrait = H > W;
+        if (portrait) {
+          const s = Math.min(W / 256, (H * 0.5) / 192);
+          top.style.left = W * 0.5 + "px";
+          bot.style.left = W * 0.5 + "px";
+          top.style.top = H * 0.26 + "px";
+          bot.style.top = H * 0.64 + "px";
+          top.style.transform = `translate(-50%,-50%) scale(${s})`;
+          bot.style.transform = `translate(-50%,-50%) scale(${s})`;
+          return;
+        }
+
         const half = W / 2;
         const s = Math.min(half / 256, H / 192);
+        top.style.top = "50%";
+        bot.style.top = "50%";
         top.style.left = half * 0.5 + "px";
         bot.style.left = half * 1.5 + "px";
         top.style.transform = `translate(-50%,-50%) scale(${s})`;
@@ -313,6 +412,7 @@
   }
 
   addEventListener("load", () => {
+    initTouchControls();
     boot().catch((err) => {
       console.error("[boot]", err);
       $("sub").textContent = "Error: " + err.message;
