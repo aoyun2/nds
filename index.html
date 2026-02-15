@@ -116,46 +116,5 @@
 
   <script src="./js/desmond.min.js"></script>
   <script src="./js/boot.js"></script>
-  <script>
-    (function enableKeyboardInEmbeds() {
-      // Pick the element you want to “own” keyboard input:
-      const target =
-        document.querySelector("iframe")
-
-      if (!target) return;
-
-      // Make it focusable
-      if (target.tabIndex < 0) target.tabIndex = 0;
-      target.style.outline = "none";
-
-      const focusTarget = () => {
-        // Must be triggered by a user gesture to be reliable
-        try { window.focus(); } catch (_) {}
-        try { target.focus({ preventScroll: true }); } catch (_) { target.focus(); }
-      };
-
-      // Any click/tap inside the iframe should lock focus
-      ["pointerdown", "mousedown", "touchstart", "click"].forEach((ev) => {
-        window.addEventListener(ev, focusTarget, { capture: true, passive: true });
-      });
-
-      // Stop arrow keys/space from scrolling the parent page *when target is focused*
-      const blockKeys = new Set([
-        "ArrowUp","ArrowDown","ArrowLeft","ArrowRight",
-        " ","Space","PageUp","PageDown","Home","End"
-      ]);
-
-      window.addEventListener("keydown", (e) => {
-        const ae = document.activeElement;
-        const focused = (ae === target) || (target.contains && target.contains(ae));
-        if (focused && (blockKeys.has(e.key) || blockKeys.has(e.code))) {
-          e.preventDefault();
-        }
-      }, { capture: true });
-
-      // Optional: focus once on load (may not work until first click, but harmless)
-      window.addEventListener("load", () => setTimeout(focusTarget, 0));
-    })();
-  </script>
 </body>
 </html>
